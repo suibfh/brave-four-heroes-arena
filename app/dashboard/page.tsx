@@ -238,6 +238,22 @@ export default function DashboardPage() {
 
         {/* Navigation Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Battle Arena Section Link */}
+          <Card className="cyber-card border-2 border-red-600 cursor-pointer hover:bg-red-50 transition-colors col-span-full" onClick={() => router.push('/stages')}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-neutral-900 font-bold flex items-center uppercase">
+                  <Swords className="w-6 h-6 mr-2 text-red-600" />
+                  Battle Arena
+                </CardTitle>
+                <CardDescription className="text-neutral-500 font-mono mt-1">
+                  ステージを選んでバトルに挑戦！
+                </CardDescription>
+              </div>
+              <ExternalLink className="w-6 h-6 text-neutral-400" />
+            </CardHeader>
+          </Card>
+
           {/* Units Section Link */}
           <Card className="cyber-card border-2 border-neutral-900 cursor-pointer hover:bg-neutral-50 transition-colors" onClick={() => router.push('/units')}>
             <CardHeader className="flex flex-row items-center justify-between">
