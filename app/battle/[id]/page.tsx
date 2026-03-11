@@ -83,7 +83,7 @@ export default function BattlePage() {
     if (!unitListData?.units?.length) return;
     const fetchAll = async () => {
       const entries = await Promise.all(
-        unitListData.units.map(async (heroId) => {
+        (unitListData.units ?? []).map(async (heroId) => {
           try {
             const res = await fetch(`/api/hero/metadata/${heroId}`);
             if (!res.ok) return null;
@@ -108,7 +108,7 @@ export default function BattlePage() {
     if (!sphereListData?.spheres?.length) return;
     const fetchAll = async () => {
       const entries = await Promise.all(
-        sphereListData.spheres.map(async (sphereId) => {
+        (sphereListData.spheres ?? []).map(async (sphereId) => {
           try {
             const res = await fetch(`/api/sphere/metadata/${sphereId}`);
             if (!res.ok) return null;
@@ -321,7 +321,7 @@ export default function BattlePage() {
             <p className="text-center text-neutral-500 font-mono py-20">保有スフィアがありません</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {sphereListData.spheres.map((sphereId) => {
+              {(sphereListData?.spheres ?? []).map((sphereId) => {
                 const meta = sphereMetaMap[sphereId];
                 return (
                   <Card
@@ -472,7 +472,7 @@ export default function BattlePage() {
             <p className="text-neutral-400 font-mono text-center py-10">保有ユニットがありません</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {unitListData.units.map((heroId) => {
+              {(unitListData?.units ?? []).map((heroId) => {
                 const meta = heroMetaMap[heroId];
                 const isSelected = selectedUnits.some((u) => u.heroId === heroId);
                 const isDisabled = !isSelected && selectedUnits.length >= maxUnits;
