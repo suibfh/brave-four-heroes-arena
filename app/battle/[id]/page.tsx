@@ -8,8 +8,6 @@ import { ChevronLeft, Swords, Star, Trophy, Skull, Minus, ExternalLink } from 'l
 import { STAGES } from '@/src/config/stages';
 import { useGetV1Me } from '@/src/api/generated/user/user';
 import { useGetV1MeUnits, useGetV1MeSpheres } from '@/src/api/generated/assets/assets';
-import { usePostV1Heroes } from '@/src/api/generated/hero/hero';
-import { usePostV1Spheres } from '@/src/api/generated/sphere/sphere';
 import { usePostV1BattleSimulate } from '@/src/api/generated/battle/battle';
 
 // ---- 型定義 ----
@@ -78,51 +76,54 @@ export default function BattlePage() {
   const { data: unitListData, isLoading: isLoadingUnits } = useGetV1MeUnits();
   const { data: sphereListData, isLoading: isLoadingSpheres } = useGetV1MeSpheres();
 
-  // ヒーロー詳細
+  // ヒーロー詳細 → /api/hero/metadata/{id} を使用（mogeさんと同じ）
   const [heroMetaMap, setHeroMetaMap] = useState<Record<string, HeroMetadata>>({});
-  const { mutate: fetchHeroes } = usePostV1Heroes({
-    mutation: {
-      onSuccess: (data) => {
-        const map: Record<string, HeroMetadata> = {};
-        if (Array.isArray((data as any).heroes)) {
-          (data as any).heroes.forEach((h: any) => {
-            map[String(h.hero_id ?? h.id)] = h;
-          });
-        } else if ((data as any).heroes && typeof (data as any).heroes === 'object') {
-          Object.entries((data as any).heroes).forEach(([k, v]) => {
-            map[k] = v as HeroMetadata;
-          });
-        }
-        setHeroMetaMap(map);
-      },
-    },
-  });
-
-  // スフィア詳細
-  const [sphereMetaMap, setSphereMetaMap] = useState<Record<string, SphereMetadata>>({});
-  const { mutate: fetchSpheres } = usePostV1Spheres({
-    mutation: {
-      onSuccess: (data) => {
-        const map: Record<string, SphereMetadata> = {};
-        const list = (data as any)?.spheres?.extension_datas ?? (data as any)?.extension_datas ?? [];
-        list.forEach((s: any) => {
-          map[String(s.extension_id)] = s;
-        });
-        setSphereMetaMap(map);
-      },
-    },
-  });
 
   useEffect(() => {
-    if (unitListData?.units && unitListData.units.length > 0) {
-      fetchHeroes({ data: { hero_ids: unitListData.units.map(Number) } });
-    }
+    if (!unitListData?.units?.length) return;
+    const fetchAll = async () => {
+      const entries = await Promise.all(
+        unitListData.units.map(async (heroId) => {
+          try {
+            const res = await fetch(`/api/hero/metadata/${heroId}`);
+            if (!res.ok) return null;
+            const data: HeroMetadata = await res.json();
+            return [String(heroId), data] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const map: Record<string, HeroMetadata> = {};
+      entries.forEach((e) => { if (e) map[e[0]] = e[1]; });
+      setHeroMetaMap(map);
+    };
+    fetchAll();
   }, [unitListData?.units]);
 
+  // スフィア詳細 → /api/sphere/metadata/{id} を使用
+  const [sphereMetaMap, setSphereMetaMap] = useState<Record<string, SphereMetadata>>({});
+
   useEffect(() => {
-    if (sphereListData?.spheres && sphereListData.spheres.length > 0) {
-      fetchSpheres({ data: { sphere_ids: sphereListData.spheres.map(Number) } });
-    }
+    if (!sphereListData?.spheres?.length) return;
+    const fetchAll = async () => {
+      const entries = await Promise.all(
+        sphereListData.spheres.map(async (sphereId) => {
+          try {
+            const res = await fetch(`/api/sphere/metadata/${sphereId}`);
+            if (!res.ok) return null;
+            const data: SphereMetadata = await res.json();
+            return [String(sphereId), data] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const map: Record<string, SphereMetadata> = {};
+      entries.forEach((e) => { if (e) map[e[0]] = e[1]; });
+      setSphereMetaMap(map);
+    };
+    fetchAll();
   }, [sphereListData?.spheres]);
 
   // ---- 選択状態 ----
@@ -141,15 +142,16 @@ export default function BattlePage() {
     mutation: {
       onSuccess: (data) => {
         const res = data as any;
-        // 500エラーでもonSuccessに入る場合があるので結果を検証
-        if (res?.result === undefined) {
-          setBattleError(`バトルAPIエラー: ${JSON.stringify(res)}`);
-          return;
-        }
-        setBattleResult(res as BattleResult);
+        setBattleResult({
+          result: res?.result ?? 2,
+          battle_key: res?.battle_key ?? '',
+          attackerTakenDamage: res?.attackerTakenDamage ?? 0,
+          defenderTakenDamage: res?.defenderTakenDamage ?? 0,
+          playerName: res?.playerName ?? '',
+          opponentName: res?.opponentName ?? '',
+        });
       },
       onError: (err: any) => {
-        // エラーの詳細を表示してデバッグしやすくする
         const detail = err?.response?.data?.message ?? err?.response?.data?.error ?? err?.message ?? 'バトルに失敗しました';
         setBattleError(`[${err?.response?.status ?? 'ERR'}] ${detail}`);
       },
@@ -212,7 +214,7 @@ export default function BattlePage() {
       hero_id: Number(u.heroId),
       position: i + 1,
       extension_ids: u.sphereIds.filter(Boolean).map(Number),
-      skill_orders: [0, 1, 2],
+      skill_orders: [1, 2, 0],
     }));
 
     simulateBattle({
@@ -255,13 +257,13 @@ export default function BattlePage() {
                 <div className="text-center">
                   <p className="text-neutral-400 font-bold uppercase text-xs mb-1">受けたダメージ</p>
                   <p className="text-2xl font-black font-mono text-red-600">
-                    {(battleResult.attackerTakenDamage ?? 0).toLocaleString()}
+                    {battleResult.attackerTakenDamage.toLocaleString()}
                   </p>
                 </div>
                 <div className="text-center">
                   <p className="text-neutral-400 font-bold uppercase text-xs mb-1">与えたダメージ</p>
                   <p className="text-2xl font-black font-mono text-green-600">
-                    {(battleResult.defenderTakenDamage ?? 0).toLocaleString()}
+                    {battleResult.defenderTakenDamage.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -497,8 +499,8 @@ export default function BattlePage() {
                       </p>
                       {meta?.attributes && (
                         <div className="text-[10px] font-mono text-neutral-500 space-y-0.5">
-                          <p>HP {meta.attributes.hp.toLocaleString()}</p>
-                          <p>Lv {meta.attributes.lv}</p>
+                          <p>HP {(meta.attributes.hp ?? 0).toLocaleString()}</p>
+                          <p>Lv {meta.attributes.lv ?? 1}</p>
                         </div>
                       )}
                       {isSelected && (
