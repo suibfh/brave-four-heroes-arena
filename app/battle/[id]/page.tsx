@@ -13,36 +13,40 @@ import { usePostV1Spheres } from '@/src/api/generated/sphere/sphere';
 import { usePostV1BattleSimulate } from '@/src/api/generated/battle/battle';
 
 // ---- 型定義 ----
+// /v1/heroes レスポンス: { heroes: { hero_datas: HeroMetadata[] } }
 interface HeroMetadata {
+  hero_id: number;
   name: string;
-  image: string;
-  attributes: {
-    type_name: string;
-    rarity: string;
-    lv: number;
+  name_jp: string;
+  rarity: number;
+  lv: number;
+  attribute: number;
+  param: {
     hp: number;
     phy: number;
     int: number;
     agi: number;
-    spr: number;
-    def: number;
+    vit: number;
+    mnd: number;
   };
+  asset: boolean;
 }
 
+// /v1/spheres レスポンス: { spheres: { extension_datas: SphereMetadata[] } }
 interface SphereMetadata {
+  extension_id: number;
   name: string;
-  image: string;
-  attributes: {
-    type_name: string;
-    rarity: string;
-    lv: number;
+  name_jp: string;
+  rarity: number;
+  lv: number;
+  asset: boolean;
+  param: {
     hp: number;
     phy: number;
     int: number;
     agi: number;
-    spr: number;
-    def: number;
-    ability_name: string;
+    vit: number;
+    mnd: number;
   };
 }
 
@@ -84,15 +88,10 @@ export default function BattlePage() {
     mutation: {
       onSuccess: (data) => {
         const map: Record<string, HeroMetadata> = {};
-        if (Array.isArray((data as any).heroes)) {
-          (data as any).heroes.forEach((h: any) => {
-            map[String(h.hero_id ?? h.id)] = h;
-          });
-        } else if ((data as any).heroes && typeof (data as any).heroes === 'object') {
-          Object.entries((data as any).heroes).forEach(([k, v]) => {
-            map[k] = v as HeroMetadata;
-          });
-        }
+        const heroDatas = (data as any)?.heroes?.hero_datas ?? [];
+        heroDatas.forEach((h: any) => {
+          map[String(h.hero_id)] = h;
+        });
         setHeroMetaMap(map);
       },
     },
@@ -320,18 +319,18 @@ export default function BattlePage() {
                     onClick={() => assignSphere(sphereId)}
                   >
                     <CardContent className="p-3 space-y-2">
-                      {meta?.image && (
-                        <img src={meta.image} alt="" className="w-full h-20 object-contain" />
-                      )}
+                      <div className="w-full h-20 bg-neutral-100 rounded flex items-center justify-center">
+                        <span className="text-2xl">🔮</span>
+                      </div>
                       <p className="font-bold text-xs uppercase text-center leading-tight">
-                        {meta?.attributes?.type_name ?? `Sphere #${sphereId}`}
+                        {meta?.name ?? `Sphere #${sphereId}`}
                       </p>
-                      {meta?.attributes && (
+                      {meta?.param && (
                         <div className="text-[10px] font-mono text-neutral-500 space-y-0.5">
-                          {meta.attributes.hp > 0 && <p>HP +{meta.attributes.hp}</p>}
-                          {meta.attributes.phy > 0 && <p>PHY +{meta.attributes.phy}</p>}
-                          {meta.attributes.int > 0 && <p>INT +{meta.attributes.int}</p>}
-                          {meta.attributes.agi > 0 && <p>AGI +{meta.attributes.agi}</p>}
+                          {(meta.param.hp ?? 0) > 0 && <p>HP +{meta.param.hp}</p>}
+                          {(meta.param.phy ?? 0) > 0 && <p>PHY +{meta.param.phy}</p>}
+                          {(meta.param.int ?? 0) > 0 && <p>INT +{meta.param.int}</p>}
+                          {(meta.param.agi ?? 0) > 0 && <p>AGI +{meta.param.agi}</p>}
                         </div>
                       )}
                     </CardContent>
@@ -386,16 +385,14 @@ export default function BattlePage() {
                     <div key={u.heroId} className="flex items-center gap-3 p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
                       {/* ユニット画像 */}
                       <div className="w-12 h-12 flex-shrink-0">
-                        {meta?.image ? (
-                          <img src={meta.image} alt="" className="w-full h-full object-cover rounded" />
-                        ) : (
-                          <div className="w-full h-full bg-neutral-200 rounded" />
-                        )}
+                        <div className="w-full h-full bg-neutral-200 rounded flex items-center justify-center">
+                          <span className="text-lg">⚔️</span>
+                        </div>
                       </div>
                       {/* ユニット名 */}
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm uppercase truncate">
-                          {meta?.attributes?.type_name ?? `Unit #${u.heroId}`}
+                          {meta?.name ?? `Unit #${u.heroId}`}
                         </p>
                         {/* スフィアスロット */}
                         <div className="flex gap-2 mt-1">
@@ -408,7 +405,7 @@ export default function BattlePage() {
                                   onClick={() => setSpherePickTarget({ unitIdx, slotIdx })}
                                   className={`text-[10px] font-bold px-2 py-0.5 border rounded transition-colors ${sId ? 'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-neutral-300 text-neutral-400 hover:border-blue-400'}`}
                                 >
-                                  {sMeta?.attributes?.type_name ?? (sId ? `#${sId}` : `スフィア ${slotIdx + 1}`)}
+                                  {sMeta?.name ?? (sId ? `#${sId}` : `スフィア ${slotIdx + 1}`)}
                                 </button>
                                 {sId && (
                                   <button onClick={() => removeSphere(unitIdx, slotIdx)} className="text-neutral-300 hover:text-red-500">
@@ -479,18 +476,20 @@ export default function BattlePage() {
                     onClick={() => !isDisabled && toggleUnit(heroId)}
                   >
                     <CardContent className="p-3 space-y-2">
-                      {meta?.image ? (
-                        <img src={meta.image} alt="" className="w-full h-20 object-cover rounded" />
+                      {meta ? (
+                        <div className="w-full h-20 bg-neutral-100 rounded flex items-center justify-center">
+                          <span className="text-2xl">⚔️</span>
+                        </div>
                       ) : (
                         <div className="w-full h-20 bg-neutral-100 rounded animate-pulse" />
                       )}
                       <p className="font-bold text-xs uppercase text-center leading-tight truncate">
-                        {meta?.attributes?.type_name ?? `Unit #${heroId}`}
+                        {meta?.name ?? `Unit #${heroId}`}
                       </p>
-                      {meta?.attributes && (
+                      {meta?.param && (
                         <div className="text-[10px] font-mono text-neutral-500 space-y-0.5">
-                          <p>HP {meta.attributes.hp.toLocaleString()}</p>
-                          <p>Lv {meta.attributes.lv}</p>
+                          <p>HP {(meta.param.hp ?? 0).toLocaleString()}</p>
+                          <p>Lv {meta.lv ?? 1}</p>
                         </div>
                       )}
                       {isSelected && (
