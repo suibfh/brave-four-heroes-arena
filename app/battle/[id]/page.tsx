@@ -419,12 +419,16 @@ function SphereMiniCard({ sphereId, gameData, onClick }: {
 const SKILL_LABELS = ['アート', 'スフィア1', 'スフィア2'];
 const SKILL_COLORS = ['bg-pink-100 text-pink-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700'];
 
-function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkillOrderChange }: {
+function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkillOrderChange,
+  reorderMode, isReorderSelected, onReorderTap }: {
   unit: SelectedUnit;
   onSphereClick: (slotIdx: number) => void;
   onSphereRemove: (slotIdx: number) => void;
   onRemove: () => void;
   onSkillOrderChange: (newOrders: [number, number, number]) => void;
+  reorderMode: boolean;
+  isReorderSelected: boolean;
+  onReorderTap: () => void;
 }) {
   const meta = useHeroMeta(unit.heroId);
   const sphere0Meta = useSphereMeta(unit.sphereIds[0] ?? null);
@@ -440,7 +444,16 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
   };
 
   return (
-    <div className="border border-neutral-200 rounded-lg bg-white overflow-hidden">
+    <div
+      onClick={reorderMode ? onReorderTap : undefined}
+      className={`border-2 rounded-lg bg-white overflow-hidden transition-all ${
+        reorderMode
+          ? isReorderSelected
+            ? 'border-orange-500 ring-2 ring-orange-300 cursor-pointer shadow-md scale-[1.01]'
+            : 'border-neutral-400 cursor-pointer hover:border-orange-400 hover:shadow'
+          : 'border-neutral-200'
+      }`}
+    >
       {/* ユニット */}
       <div className="flex items-center gap-2 p-2 border-b border-neutral-100">
         <div className="w-9 h-9 flex-shrink-0 rounded overflow-hidden bg-neutral-100">
@@ -452,7 +465,13 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
           <p className="font-bold text-xs uppercase truncate">{meta?.attributes?.type_name ?? `Unit #${unit.heroId}`}</p>
           {meta?.attributes && <p className="text-[9px] text-neutral-400 font-mono">HP {(meta.attributes.hp ?? 0).toLocaleString()}</p>}
         </div>
-        <button onClick={onRemove} className="text-neutral-300 hover:text-red-500 font-bold text-sm px-1 flex-shrink-0">×</button>
+        {reorderMode ? (
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isReorderSelected ? 'bg-orange-500 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
+            {isReorderSelected ? '選択中' : 'タップ'}
+          </span>
+        ) : (
+          <button onClick={onRemove} className="text-neutral-300 hover:text-red-500 font-bold text-sm px-1 flex-shrink-0">×</button>
+        )}
       </div>
 
       {/* スフィアスロット（アイコン付き） */}
@@ -591,6 +610,8 @@ export default function BattlePage() {
   const [selectedUnits, setSelectedUnits] = useState<SelectedUnit[]>([]);
   const maxUnits = 5;
   const [spherePickTarget, setSpherePickTarget] = useState<{ unitIdx: number; slotIdx: number } | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reorderFirstIdx, setReorderFirstIdx] = useState<number | null>(null);
 
   // バトル状態
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
@@ -695,6 +716,21 @@ export default function BattlePage() {
       next[unitIdx] = unit;
       return next;
     });
+  };
+
+  const handleReorderTap = (unitIdx: number) => {
+    if (reorderFirstIdx === null) {
+      setReorderFirstIdx(unitIdx);
+    } else {
+      if (reorderFirstIdx !== unitIdx) {
+        setSelectedUnits(prev => {
+          const next = [...prev];
+          [next[reorderFirstIdx], next[unitIdx]] = [next[unitIdx], next[reorderFirstIdx]];
+          return next;
+        });
+      }
+      setReorderFirstIdx(null);
+    }
   };
 
   const updateSkillOrders = (unitIdx: number, newOrders: [number, number, number]) => {
@@ -865,17 +901,34 @@ export default function BattlePage() {
         {/* ── パーティ ── */}
         <div className={`lg:flex lg:flex-col lg:border-r-2 border-neutral-200 lg:overflow-y-auto ${activeTab !== 'party' ? 'hidden lg:flex' : ''}`}>
           <div className="p-3 space-y-2">
-            <p className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">パーティ ({selectedUnits.length}/{maxUnits})</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">パーティ ({selectedUnits.length}/{maxUnits})</p>
+              {selectedUnits.length >= 2 && (
+                <button
+                  onClick={() => { setReorderMode(r => !r); setReorderFirstIdx(null); }}
+                  className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all ${
+                    reorderMode
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'border-neutral-300 text-neutral-500 hover:border-neutral-500'
+                  }`}
+                >
+                  {reorderMode ? '✓ 完了' : '⇅ 並び替え'}
+                </button>
+              )}
+            </div>
             {selectedUnits.length === 0 ? (
               <p className="text-neutral-400 font-mono text-xs py-6 text-center border border-dashed border-neutral-200 rounded-lg">ユニットを選んでください</p>
             ) : (
               <div className="space-y-2">
                 {selectedUnits.map((u, unitIdx) => (
                   <SelectedUnitRow key={u.heroId} unit={u}
-                    onSphereClick={slotIdx => setSpherePickTarget({ unitIdx, slotIdx })}
-                    onSphereRemove={slotIdx => removeSphere(unitIdx, slotIdx)}
-                    onRemove={() => toggleUnit(u.heroId)}
-                    onSkillOrderChange={orders => updateSkillOrders(unitIdx, orders)} />
+                    onSphereClick={slotIdx => { if (!reorderMode) setSpherePickTarget({ unitIdx, slotIdx }); }}
+                    onSphereRemove={slotIdx => { if (!reorderMode) removeSphere(unitIdx, slotIdx); }}
+                    onRemove={() => { if (!reorderMode) toggleUnit(u.heroId); }}
+                    onSkillOrderChange={orders => updateSkillOrders(unitIdx, orders)}
+                    reorderMode={reorderMode}
+                    isReorderSelected={reorderFirstIdx === unitIdx}
+                    onReorderTap={() => handleReorderTap(unitIdx)} />
                 ))}
               </div>
             )}
