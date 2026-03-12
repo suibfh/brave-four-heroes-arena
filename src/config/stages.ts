@@ -28,7 +28,7 @@ export const STAGES: Stage[] = [
     defender_uid: 100006912,
     defender_units: [
       {
-        hero_id: 52200004,
+        hero_id: 20170027,
         position: 1,
         extension_ids: [50910004, 50780080],
         skill_orders: [1, 2, 0],
