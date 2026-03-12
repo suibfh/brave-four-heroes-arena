@@ -8,6 +8,8 @@ import { ChevronLeft, Swords, Star, Trophy, Skull, Minus, ExternalLink, Search, 
 import { STAGES } from '@/src/config/stages';
 import { useGetV1Me } from '@/src/api/generated/user/user';
 import { useGetV1MeUnits, useGetV1MeSpheres } from '@/src/api/generated/assets/assets';
+import { usePostV1Heroes } from '@/src/api/generated/hero/hero';
+import { usePostV1Spheres } from '@/src/api/generated/sphere/sphere';
 import { usePostV1BattleSimulate } from '@/src/api/generated/battle/battle';
 
 // ============================================================
@@ -77,11 +79,11 @@ type BattleResult = {
 
 // ============================================================
 // 定数 — rarity/attribute マッピング
-// rarity数値: NFTメタデータ "Legendary" = /v1/heroes rarity:5 と確認済み
-// → 5=Legendary(L/LL), 4=?, 3=?, 2=Rare?, 1=Uncommon?  ★確認後にここを調整
+// rarity数値確定: 5=L(LL), 4=E, 3=R, 2=U (1=Commonはゲーム内限定で使わない)
+// attribute数値確定: 1=炎, 2=水, 3=樹, 4=雷, 5=光, 6=闇
 // ============================================================
 const UNIT_RARITY_MAP: Record<number, string> = {
-  5: 'L', 4: 'E', 3: 'R', 2: 'U', 1: 'C',
+  5: 'L', 4: 'E', 3: 'R', 2: 'U',
 };
 const SPHERE_RARITY_MAP: Record<number, string> = {
   5: 'L', 4: 'E', 3: 'R', 2: 'U', 1: 'C',
@@ -104,6 +106,10 @@ const UNIT_ATTR_MAP: Record<number, { label: string; tw: string }> = {
 };
 const UNIT_ATTR_IDS = [1, 2, 3, 4, 5, 6];
 
+// ============================================================
+// 画像URL変換（小サムネイル用）
+// .../unit/2000/unit_ills_thum_4002024.png
+//  → .../unit/4002024/unit_ills_thum_4002024.png
 // ============================================================
 // グローバルキャッシュ（再マウント時も再fetchしない）
 // ============================================================
@@ -152,6 +158,20 @@ function useSphereMeta(sphereId: string | null) {
 }
 
 // ============================================================
+// 画像URL変換
+// メタデータ例: .../rsc/unit/2000/unit_ills_thum_4002024.png
+//    → 高速版: .../rsc/unit/4002024/unit_ills_thum_4002024.png
+// スフィアは変換不要（元URLそのまま）
+// ============================================================
+function toFastUnitImageUrl(url: string): string {
+  if (!url) return url;
+  const m = url.match(/unit_ills_thum_(\d+)\.png/);
+  if (!m) return url;
+  const id = m[1];
+  return `https://rsc.bravefrontierheroes.com/rsc/unit/${id}/unit_ills_thum_${id}.png`;
+}
+
+// ============================================================
 // ユーティリティ
 // ============================================================
 function DifficultyStars({ level }: { level: number }) {
@@ -182,7 +202,7 @@ function HeroDetailModal({ heroId, gameData, onClose }: {
         {meta ? (
           <>
             <div className="relative">
-              <img src={meta.image} alt="" className="w-full h-48 object-cover" />
+              <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-48 object-cover" />
               <button onClick={onClose} className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"><X className="w-4 h-4" /></button>
               <div className="absolute bottom-2 left-2 flex gap-1">
                 <span className="bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">{rarityLabel}</span>
@@ -309,15 +329,15 @@ function UnitMiniCard({ heroId, isSelected, isDisabled, gameData, onClick }: {
             {attrInfo.label}
           </span>
         )}
-        {/* 詳細ボタン */}
+        {/* 詳細ボタン（タップしやすいサイズ） */}
         {meta && (
-          <button className="absolute top-1 right-1 z-10 bg-white/80 rounded-full p-0.5 hover:bg-white"
+          <button className="absolute top-0 right-0 z-10 w-8 h-8 flex items-center justify-center bg-white/90 rounded-bl-lg rounded-tr-md hover:bg-white active:bg-white"
             onClick={e => { e.stopPropagation(); setShowDetail(true); }}>
-            <Info className="w-3 h-3 text-neutral-400" />
+            <Info className="w-5 h-5 text-neutral-500" />
           </button>
         )}
         {meta?.image ? (
-          <img src={meta.image} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-t-md" />
+          <img src={toFastUnitImageUrl(meta.image)} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-t-md" />
         ) : (
           <div className="w-full aspect-square bg-neutral-100 rounded-t-md animate-pulse" />
         )}
@@ -365,9 +385,9 @@ function SphereMiniCard({ sphereId, gameData, onClick }: {
           </span>
         )}
         {meta && (
-          <button className="absolute top-1 right-1 z-10 bg-white/80 rounded-full p-0.5 hover:bg-white"
+          <button className="absolute top-0 right-0 z-10 w-8 h-8 flex items-center justify-center bg-white/90 rounded-bl-lg rounded-tr-md hover:bg-white active:bg-white"
             onClick={e => { e.stopPropagation(); setShowDetail(true); }}>
-            <Info className="w-3 h-3 text-neutral-400" />
+            <Info className="w-5 h-5 text-neutral-500" />
           </button>
         )}
         {meta?.image ? (
@@ -425,7 +445,7 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
       <div className="flex items-center gap-2 p-2 border-b border-neutral-100">
         <div className="w-9 h-9 flex-shrink-0 rounded overflow-hidden bg-neutral-100">
           {meta?.image
-            ? <img src={meta.image} alt="" className="w-full h-full object-cover" />
+            ? <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-full object-cover" />
             : <div className="w-full h-full animate-pulse bg-neutral-200" />}
         </div>
         <div className="flex-1 min-w-0">
@@ -521,10 +541,32 @@ export default function BattlePage() {
   const { data: unitListData, isLoading: isLoadingUnits } = useGetV1MeUnits();
   const { data: sphereListData, isLoading: isLoadingSpheres } = useGetV1MeSpheres();
 
-  // ゲームデータ（rarity/attribute）— ページロード時1回だけfetch
+  // ゲームデータ（rarity/attribute）— Orvalフックで認証済みリクエスト
   const [heroGameMap, setHeroGameMap]     = useState<Record<string, HeroGameData>>({});
   const [sphereGameMap, setSphereGameMap] = useState<Record<string, SphereGameData>>({});
   const gameFetchedRef = useRef(false);
+
+  const { mutate: fetchHeroGameData } = usePostV1Heroes({
+    mutation: {
+      onSuccess: (data) => {
+        const datas: HeroGameData[] = (data as any)?.heroes?.hero_datas ?? [];
+        const map: Record<string, HeroGameData> = {};
+        datas.forEach(h => { map[String(h.hero_id)] = h; });
+        setHeroGameMap(map);
+      },
+    },
+  });
+
+  const { mutate: fetchSphereGameData } = usePostV1Spheres({
+    mutation: {
+      onSuccess: (data) => {
+        const datas: SphereGameData[] = (data as any)?.spheres?.extension_datas ?? [];
+        const map: Record<string, SphereGameData> = {};
+        datas.forEach(s => { map[String(s.extension_id)] = s; });
+        setSphereGameMap(map);
+      },
+    },
+  });
 
   useEffect(() => {
     if (gameFetchedRef.current) return;
@@ -532,38 +574,9 @@ export default function BattlePage() {
     const spheres = sphereListData?.spheres ?? [];
     if (units.length === 0 && spheres.length === 0) return;
     gameFetchedRef.current = true;
-
-    if (units.length > 0) {
-      fetch('/api/bfh/v1/heroes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hero_ids: units.map(Number) }),
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          const datas: HeroGameData[] = d?.heroes?.hero_datas ?? [];
-          const map: Record<string, HeroGameData> = {};
-          datas.forEach(h => { map[String(h.hero_id)] = h; });
-          setHeroGameMap(map);
-        })
-        .catch(() => {});
-    }
-
-    if (spheres.length > 0) {
-      fetch('/api/bfh/v1/spheres', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sphere_ids: spheres.map(Number) }),
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          const datas: SphereGameData[] = d?.spheres?.extension_datas ?? [];
-          const map: Record<string, SphereGameData> = {};
-          datas.forEach(s => { map[String(s.extension_id)] = s; });
-          setSphereGameMap(map);
-        })
-        .catch(() => {});
-    }
+    if (units.length > 0)   fetchHeroGameData({ data: { hero_ids: units.map(Number) } } as any);
+    if (spheres.length > 0) fetchSphereGameData({ data: { sphere_ids: spheres.map(Number) } } as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitListData?.units, sphereListData?.spheres]);
 
   // UI状態
