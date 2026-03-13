@@ -626,7 +626,17 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
 // デッキテンプレートリスト
 // ============================================================
 function DeckUnitIcon({ heroId }: { heroId: string }) {
-  const meta = useHeroMeta(heroId);
+  // useHeroMeta はマウント時の初期値を使うため、マウント後にキャッシュが埋まっても
+  // 再レンダリングされない。独自カウンタで強制再評価する。
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (heroMetaCache[heroId]) return; // すでにキャッシュ済みなら不要
+    const t = setInterval(() => {
+      if (heroMetaCache[heroId]) { setTick(v => v + 1); clearInterval(t); }
+    }, 200);
+    return () => clearInterval(t);
+  }, [heroId]);
+  const meta = heroMetaCache[heroId] ?? null;
   return (
     <div className="w-7 h-7 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
       {meta?.image
@@ -642,26 +652,24 @@ function DeckCard({ deck, label, onLoad }: {
   onLoad: (deck: DeckTemplate) => void;
 }) {
   const sorted = [...deck.units].sort((a, b) => a.position - b.position);
-  // アイコンが何枚キャッシュ済みか表示してデバッグの手がかりにする
-  const cachedCount = sorted.filter(u => heroMetaCache[String(u.hero_id)]).length;
   return (
-    <div className="border-2 border-neutral-200 rounded-lg p-2 space-y-1.5">
-      <div className="flex items-center justify-between">
+    <button
+      onClick={() => onLoad(deck)}
+      className="w-full text-left border-2 border-neutral-200 hover:border-red-400 hover:bg-red-50 rounded-lg p-2 transition-all group"
+    >
+      <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
-        <span className="text-[9px] font-mono text-neutral-400">{cachedCount}/{sorted.length}体</span>
+        <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
       </div>
       <div className="flex gap-1 flex-wrap">
         {sorted.map((u, i) => (
           <DeckUnitIcon key={i} heroId={String(u.hero_id)} />
         ))}
       </div>
-      <button
-        onClick={() => onLoad(deck)}
-        className="w-full text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded py-1 transition-colors"
-      >
-        ▶ このパーティを読み込む
-      </button>
-    </div>
+      <p className="text-[9px] text-red-500 font-black mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        ▶ タップして編成に反映
+      </p>
+    </button>
   );
 }
 
