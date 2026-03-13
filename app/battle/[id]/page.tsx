@@ -807,12 +807,9 @@ export default function BattlePage() {
       const n = (sphereGameMap[id]?.name_jp || sphereGameMap[id]?.name || '').toLowerCase();
       if (!n.includes(q) && !id.includes(q)) return false;
     }
-    // NFTメタデータのrarity文字列でフィルター（ゲームAPIのrarity数値マッピングが不確定のため）
     if (sphereRarity) {
-  
-      const metaLabel = RARITY_LABEL[metaRarity] ?? '';
-      // メタデータ未取得の場合はフィルターをスルー（後でプリフェッチ後に更新される）
-      if (metaLabel && metaLabel !== sphereRarity) return false;
+      const gd = sphereGameMap[id];
+      if (gd && SPHERE_RARITY_MAP[gd.rarity] !== sphereRarity) return false;
     }
     return true;
   });
