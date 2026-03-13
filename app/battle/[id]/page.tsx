@@ -642,24 +642,26 @@ function DeckCard({ deck, label, onLoad }: {
   onLoad: (deck: DeckTemplate) => void;
 }) {
   const sorted = [...deck.units].sort((a, b) => a.position - b.position);
+  // アイコンが何枚キャッシュ済みか表示してデバッグの手がかりにする
+  const cachedCount = sorted.filter(u => heroMetaCache[String(u.hero_id)]).length;
   return (
-    <button
-      onClick={() => onLoad(deck)}
-      className="w-full text-left border-2 border-neutral-200 hover:border-red-400 hover:bg-red-50 rounded-lg p-2 transition-all group"
-    >
-      <div className="flex items-center justify-between mb-1.5">
+    <div className="border-2 border-neutral-200 rounded-lg p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
         <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
-        <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
+        <span className="text-[9px] font-mono text-neutral-400">{cachedCount}/{sorted.length}体</span>
       </div>
       <div className="flex gap-1 flex-wrap">
         {sorted.map((u, i) => (
           <DeckUnitIcon key={i} heroId={String(u.hero_id)} />
         ))}
       </div>
-      <p className="text-[9px] text-red-500 font-black mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button
+        onClick={() => onLoad(deck)}
+        className="w-full text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded py-1 transition-colors"
+      >
         ▶ このパーティを読み込む
-      </p>
-    </button>
+      </button>
+    </div>
   );
 }
 
