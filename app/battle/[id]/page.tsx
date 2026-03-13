@@ -12,6 +12,7 @@ import { useGetV1MeUnits, useGetV1MeSpheres } from '@/src/api/generated/assets/a
 import { usePostV1Heroes } from '@/src/api/generated/hero/hero';
 import { usePostV1Spheres } from '@/src/api/generated/sphere/sphere';
 import { usePostV1BattleSimulate } from '@/src/api/generated/battle/battle';
+import { useGetV1DeckTemplates } from '@/src/api/generated/deck/deck';
 
 // ============================================================
 // 型定義
@@ -68,6 +69,18 @@ type SelectedUnit = {
   skillOrders: [number, number, number]; // [first, second, third] 各値は 0=アート, 1=スフィア1, 2=スフィア2
   sphereIds: (string | null)[];
 };
+
+// デッキテンプレート型
+interface DeckUnit {
+  hero_id: number;
+  extension_ids: number[];
+  position: number;
+  skill_orders: number[];
+}
+interface DeckTemplate {
+  jin_id: number;
+  units: DeckUnit[];
+}
 
 type BattleResult = {
   result: number;
@@ -609,6 +622,78 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
 // ============================================================
 // フィルターボタン（共通）
 // ============================================================
+// ============================================================
+// デッキテンプレートリスト
+// ============================================================
+function DeckUnitIcon({ heroId }: { heroId: string }) {
+  const meta = useHeroMeta(heroId);
+  return (
+    <div className="w-7 h-7 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
+      {meta?.image
+        ? <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-full object-cover" />
+        : <div className="w-full h-full animate-pulse bg-neutral-200" />}
+    </div>
+  );
+}
+
+function DeckCard({ deck, label, onLoad }: {
+  deck: DeckTemplate;
+  label: string;
+  onLoad: (deck: DeckTemplate) => void;
+}) {
+  const sorted = [...deck.units].sort((a, b) => a.position - b.position);
+  return (
+    <button
+      onClick={() => onLoad(deck)}
+      className="w-full text-left border-2 border-neutral-200 hover:border-red-400 hover:bg-red-50 rounded-lg p-2 transition-all group"
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
+        <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
+      </div>
+      <div className="flex gap-1 flex-wrap">
+        {sorted.map((u, i) => (
+          <DeckUnitIcon key={i} heroId={String(u.hero_id)} />
+        ))}
+      </div>
+      <p className="text-[9px] text-red-500 font-black mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        ▶ このデッキを読み込む
+      </p>
+    </button>
+  );
+}
+
+function DeckTemplateList({ deckTemplates, questDeckTemplates, heroMetaCache: _cache, onLoad }: {
+  deckTemplates: DeckTemplate[];
+  questDeckTemplates: DeckTemplate[];
+  heroMetaCache: Record<string, unknown>;
+  onLoad: (deck: DeckTemplate) => void;
+}) {
+  if (deckTemplates.length === 0 && questDeckTemplates.length === 0) {
+    return <p className="text-[10px] text-neutral-400 font-mono py-4 text-center">デッキテンプレートがありません</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {deckTemplates.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[9px] font-black text-neutral-400 uppercase">通常デッキ</p>
+          {deckTemplates.map((deck) => (
+            <DeckCard key={deck.jin_id} deck={deck} label={`デッキ ${deck.jin_id}`} onLoad={onLoad} />
+          ))}
+        </div>
+      )}
+      {questDeckTemplates.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[9px] font-black text-neutral-400 uppercase">クエストデッキ</p>
+          {questDeckTemplates.map((deck) => (
+            <DeckCard key={deck.jin_id} deck={deck} label={`クエスト ${deck.jin_id}`} onLoad={onLoad} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FilterBtn({ label, active, tw, onClick }: {
   label: string; active: boolean; tw?: string; onClick: () => void;
 }) {
@@ -635,6 +720,7 @@ export default function BattlePage() {
   const { data: meData } = useGetV1Me();
   const { data: unitListData, isLoading: isLoadingUnits } = useGetV1MeUnits();
   const { data: sphereListData, isLoading: isLoadingSpheres } = useGetV1MeSpheres();
+  const { data: deckData, isLoading: isLoadingDecks } = useGetV1DeckTemplates();
 
   // ゲームデータ（rarity/attribute）— Orvalフックで認証済みリクエスト
   const [heroGameMap, setHeroGameMap]     = useState<Record<string, HeroGameData>>({});
@@ -696,7 +782,7 @@ export default function BattlePage() {
   // UI状態
   const [unitSearch,    setUnitSearch]    = useState('');
   const [sphereSearch,  setSphereSearch]  = useState('');
-  const [activeTab,     setActiveTab]     = useState<'party' | 'units' | 'spheres'>('units');
+  const [activeTab,     setActiveTab]     = useState<'party' | 'units' | 'spheres' | 'decks'>('units');
   const [unitRarity,    setUnitRarity]    = useState<string | null>(null);
   const [unitAttr,      setUnitAttr]      = useState<number | null>(null);
   const [sphereRarity,  setSphereRarity]  = useState<string | null>(null);
@@ -821,6 +907,25 @@ export default function BattlePage() {
 
   const removeUnitFromSlot = (slotIdx: number) => {
     setPartySlots(prev => { const next = [...prev]; next[slotIdx] = null; return next; });
+  };
+
+  // デッキテンプレートをパーティに読み込む
+  const loadDeckTemplate = (deck: DeckTemplate) => {
+    const next: (SelectedUnit | null)[] = Array(maxUnits).fill(null);
+    // position順にソートして先頭5枠に詰める
+    const sorted = [...deck.units].sort((a, b) => a.position - b.position).slice(0, maxUnits);
+    sorted.forEach((u, i) => {
+      const sphereIds: [string | null, string | null] = [
+        u.extension_ids[0] != null ? String(u.extension_ids[0]) : null,
+        u.extension_ids[1] != null ? String(u.extension_ids[1]) : null,
+      ];
+      const skillOrders = (u.skill_orders?.length === 3
+        ? u.skill_orders
+        : [0, 1, 2]) as [number, number, number];
+      next[i] = { heroId: String(u.hero_id), sphereIds, skillOrders };
+    });
+    setPartySlots(next);
+    setActiveTab('party');
   };
 
   // 後方互換（ユニット一覧のカードから直接タップ時）
@@ -1030,18 +1135,18 @@ export default function BattlePage() {
 
       {/* モバイルタブ */}
       <div className="lg:hidden flex border-b border-neutral-200 bg-white">
-        {(['party', 'units', 'spheres'] as const).map(tab => (
+        {(['party', 'units', 'spheres', 'decks'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 text-[11px] font-black uppercase tracking-wide transition-colors ${
               activeTab === tab ? 'border-b-2 border-red-600 text-red-600' : 'text-neutral-400 hover:text-neutral-700'
             }`}>
-            {tab === 'party' ? `パーティ (${selectedUnits.length}/${maxUnits})` : tab === 'units' ? 'ユニット' : 'スフィア'}
+            {tab === 'party' ? `パーティ (${selectedUnits.length}/${maxUnits})` : tab === 'units' ? 'ユニット' : tab === 'spheres' ? 'スフィア' : 'デッキ'}
           </button>
         ))}
       </div>
 
       {/* 3カラム */}
-      <div className="flex-1 lg:grid lg:grid-cols-[260px_1fr_1fr] lg:overflow-hidden">
+      <div className="flex-1 lg:grid lg:grid-cols-[260px_1fr_1fr_220px] lg:overflow-hidden">
 
         {/* ── パーティ ── */}
         <div className={`lg:flex lg:flex-col lg:border-r-2 border-neutral-200 lg:overflow-y-auto ${activeTab !== 'party' ? 'hidden lg:flex' : ''}`}>
@@ -1181,6 +1286,24 @@ export default function BattlePage() {
                   <SphereMiniCard key={id} sphereId={id} gameData={sphereGameMap[id]} onClick={() => {}} />
                 ))}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── デッキテンプレート ── */}
+        <div className={`lg:flex lg:flex-col lg:border-l-2 border-neutral-200 lg:overflow-y-auto ${activeTab !== 'decks' ? 'hidden lg:flex' : ''}`}>
+          <div className="p-3 space-y-2">
+            <p className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">デッキテンプレート</p>
+            <p className="text-[9px] text-neutral-400 font-mono">読み込むとパーティに反映されます</p>
+            {isLoadingDecks ? (
+              <div className="space-y-2">{Array.from({length:4}).map((_,i)=><div key={i} className="h-16 bg-neutral-100 rounded animate-pulse"/>)}</div>
+            ) : (
+              <DeckTemplateList
+                deckTemplates={(deckData as any)?.deck_templates ?? []}
+                questDeckTemplates={(deckData as any)?.quest_deck_templates ?? []}
+                heroMetaCache={heroMetaCache}
+                onLoad={loadDeckTemplate}
+              />
             )}
           </div>
         </div>
