@@ -57,6 +57,7 @@ interface HeroGameData {
 // /v1/spheres のゲームデータ
 interface SphereGameData {
   extension_id: number;
+  extension_type: number; // 画像番号 → https://rsc.bravefrontierheroes.com/rsc/sphere/{extension_type}.png
   rarity: number;
   name: string;
   name_jp: string;
@@ -141,6 +142,12 @@ function fetchHeroMeta(heroId: string, cb: (d: HeroMetadata) => void) {
     .then(d => { if (d) { heroMetaCache[heroId] = d; cb(d); } })
     .catch(() => {})
     .finally(() => heroMetaFetching.delete(heroId));
+}
+
+function getSphereImageUrl(meta: SphereMetadata | null, gameData?: SphereGameData): string | null {
+  if (meta?.image) return meta.image;
+  if (gameData?.extension_type) return `https://rsc.bravefrontierheroes.com/rsc/sphere/${gameData.extension_type}.png`;
+  return null;
 }
 
 function fetchSphereMeta(sphereId: string, cb: (d: SphereMetadata) => void) {
@@ -404,11 +411,10 @@ function SphereMiniCard({ sphereId, gameData, onClick }: {
             <Info className="w-5 h-5 text-neutral-500" />
           </button>
         )}
-        {meta?.image ? (
-          <img src={meta.image} alt="" loading="lazy" className="w-full aspect-square object-contain p-1" />
-        ) : (
-          <div className="w-full aspect-square bg-neutral-100 rounded-t-md animate-pulse" />
-        )}
+        {(() => { const url = getSphereImageUrl(meta, gameData); return url
+          ? <img src={url} alt="" loading="lazy" className="w-full aspect-square object-contain p-1" />
+          : <div className="w-full aspect-square bg-neutral-100 rounded-t-md animate-pulse" />;
+        })()}
         <div className="px-1.5 py-1">
           <p className="text-[10px] font-bold uppercase leading-tight truncate">
             {meta?.attributes?.type_name ?? `#${sphereId}`}
@@ -434,7 +440,7 @@ const SKILL_LABELS = ['アート', 'スフィア1', 'スフィア2'];
 const SKILL_COLORS = ['bg-pink-100 text-pink-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700'];
 
 function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkillOrderChange,
-  reorderMode, isReorderSelected, onReorderTap, onUnitReselect }: {
+  reorderMode, isReorderSelected, onReorderTap, onUnitReselect, sphereGameData }: {
   unit: SelectedUnit;
   onSphereClick: (slotIdx: number) => void;
   onSphereRemove: (slotIdx: number) => void;
@@ -444,6 +450,7 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
   isReorderSelected: boolean;
   onReorderTap: () => void;
   onUnitReselect: () => void;
+  sphereGameData?: (SphereGameData | undefined)[];
 }) {
   const meta = useHeroMeta(unit.heroId);
   const sphere0Meta = useSphereMeta(unit.sphereIds[0] ?? null);
@@ -546,11 +553,10 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
                 onClick={() => onSphereClick(slotIdx)}
                 className={`flex-1 flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 border rounded transition-colors text-left min-w-0 ${sId ? filledCls : emptyCls}`}
               >
-                {sMeta?.image ? (
-                  <img src={sMeta.image} alt="" className="w-5 h-5 object-contain flex-shrink-0 rounded" />
-                ) : (
-                  <span className="text-[9px] font-black flex-shrink-0 opacity-60">{label[0]}{label.slice(-1)}</span>
-                )}
+                {(() => { const url = getSphereImageUrl(sMeta, sphereGameData?.[slotIdx]); return url
+                  ? <img src={url} alt="" className="w-5 h-5 object-contain flex-shrink-0 rounded" />
+                  : <span className="text-[9px] font-black flex-shrink-0 opacity-60">{label[0]}{label.slice(-1)}</span>;
+                })()}
                 <span className="truncate">
                   {sMeta?.attributes?.type_name ?? (sId ? `#${sId}` : label)}
                 </span>
@@ -1214,7 +1220,8 @@ export default function BattlePage() {
                         reorderMode={reorderMode}
                         isReorderSelected={reorderFirstIdx === slotIdx}
                         onReorderTap={() => handleReorderTap(slotIdx)}
-                        onUnitReselect={() => { setUnitPickSlot(slotIdx); setActiveTab('units'); }} />
+                        onUnitReselect={() => { setUnitPickSlot(slotIdx); setActiveTab('units'); }}
+                        sphereGameData={u.sphereIds.map(sid => sid ? sphereGameMap[sid] : undefined)} />
                     );
                   }
                   return (
