@@ -843,7 +843,7 @@ export default function BattlePage() {
                : isDraw ? <Minus className="w-20 h-20 text-neutral-500 mx-auto mb-4" />
                : <Skull className="w-20 h-20 text-red-500 mx-auto mb-4" />}
               <h1 className={`text-5xl font-black uppercase tracking-widest ${isWin ? 'text-yellow-600' : isDraw ? 'text-neutral-600' : 'text-red-600'}`}>
-                {isWin ? 'VICTORY!' : isDraw ? 'DRAW' : 'DEFEAT'}
+                {isWin ? 'WIN' : isDraw ? 'DRAW' : 'LOSE'}
               </h1>
               <p className="text-neutral-500 font-mono mt-2">Stage {stage.id} — {stage.name}</p>
             </div>
@@ -928,7 +928,7 @@ export default function BattlePage() {
       {/* ヘッダー */}
       <div className="bg-white border-b-2 border-neutral-900 px-3 py-2 flex items-center gap-2 sticky top-0 z-10">
         <Button variant="outline" size="icon" onClick={() => router.push('/stages')}
-          className="border-neutral-900 hover:bg-neutral-900 hover:text-white flex-shrink-0 w-8 h-8">
+          className="cyber-button border-neutral-900 text-neutral-900 hover:bg-neutral-900 hover:text-white flex-shrink-0 w-8 h-8">
           <ChevronLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1 min-w-0">
