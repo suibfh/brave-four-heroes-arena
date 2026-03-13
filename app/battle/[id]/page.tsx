@@ -693,8 +693,6 @@ export default function BattlePage() {
   // ゲームデータ（rarity/attribute）— Orvalフックで認証済みリクエスト
   const [heroGameMap, setHeroGameMap]     = useState<Record<string, HeroGameData>>({});
   const [sphereGameMap, setSphereGameMap] = useState<Record<string, SphereGameData>>({});
-  const gameFetchedRef = useRef(false);
-
   const { mutate: fetchHeroGameData } = usePostV1Heroes({
     mutation: {
       onSuccess: (data) => {
@@ -712,21 +710,29 @@ export default function BattlePage() {
         const datas: SphereGameData[] = (data as any)?.spheres?.extension_datas ?? [];
         const map: Record<string, SphereGameData> = {};
         datas.forEach(s => { map[String(s.extension_id)] = s; });
-        setSphereGameMap(map);
+        setSphereGameMap(prev => ({ ...prev, ...map }));
       },
     },
   });
 
+  const heroFetchedRef   = useRef(false);
+  const sphereFetchedRef = useRef(false);
+
   useEffect(() => {
-    if (gameFetchedRef.current) return;
-    const units   = unitListData?.units ?? [];
-    const spheres = sphereListData?.spheres ?? [];
-    if (units.length === 0 && spheres.length === 0) return;
-    gameFetchedRef.current = true;
-    if (units.length > 0)   fetchHeroGameData({ data: { hero_ids: units.map(Number) } } as any);
-    if (spheres.length > 0) fetchSphereGameData({ data: { sphere_ids: spheres.map(Number) } } as any);
+    const units = unitListData?.units ?? [];
+    if (heroFetchedRef.current || units.length === 0) return;
+    heroFetchedRef.current = true;
+    fetchHeroGameData({ data: { hero_ids: units.map(Number) } } as any);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unitListData?.units, sphereListData?.spheres]);
+  }, [unitListData?.units]);
+
+  useEffect(() => {
+    const spheres = sphereListData?.spheres ?? [];
+    if (sphereFetchedRef.current || spheres.length === 0) return;
+    sphereFetchedRef.current = true;
+    fetchSphereGameData({ data: { sphere_ids: spheres.map(Number) } } as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sphereListData?.spheres]);
 
   // スフィアメタをバックグラウンドでプリフェッチ（検索のため）
   // デッキ内ユニットをバックグラウンドでプリフェッチ（デッキタブのアイコン表示のため）
@@ -882,7 +888,6 @@ export default function BattlePage() {
   // デッキテンプレートをパーティに読み込む
   const loadDeckTemplate = (deck: DeckTemplate) => {
     const next: (SelectedUnit | null)[] = Array(maxUnits).fill(null);
-    // position順にソートして先頭5枠に詰める
     const sorted = [...deck.units].sort((a, b) => a.position - b.position).slice(0, maxUnits);
     sorted.forEach((u, i) => {
       const sphereIds: [string | null, string | null] = [
@@ -894,6 +899,11 @@ export default function BattlePage() {
         : [0, 1, 2]) as [number, number, number];
       next[i] = { heroId: String(u.hero_id), sphereIds, skillOrders };
     });
+    // sphereGameMap にないスフィアID（特殊スフィア等）を追加fetch
+    const allSphereIds = sorted.flatMap(u => u.extension_ids).filter(id => id && id !== 0 && !sphereGameMap[String(id)]);
+    if (allSphereIds.length > 0) {
+      fetchSphereGameData({ data: { sphere_ids: allSphereIds } } as any);
+    }
     setPartySlots(next);
     setActiveTab('party');
   };
