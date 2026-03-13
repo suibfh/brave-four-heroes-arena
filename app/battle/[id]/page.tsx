@@ -491,9 +491,6 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
                 <div key={k} className="flex items-baseline gap-0.5">
                   <span className="text-[8px] font-black text-neutral-400 w-5 flex-shrink-0">{STAT_LABELS[k]}</span>
                   <span className="text-[9px] font-mono text-neutral-700">{totalStats[k].toLocaleString()}</span>
-                  {sphereBonus[k] > 0 && (
-                    <span className="text-[8px] font-bold text-emerald-500">+{sphereBonus[k].toLocaleString()}</span>
-                  )}
                 </div>
               ))}
             </div>
@@ -579,13 +576,13 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
             <div className="px-2 pb-2 space-y-1.5">
               {hasBB && (
                 <div>
-                  <p className="text-[8px] font-black text-pink-500 uppercase mb-0.5">Brave Burst</p>
+                  <p className="text-[8px] font-black text-red-500 uppercase mb-0.5">Brave Burst</p>
                   <p className="text-[10px] text-neutral-600 leading-snug">{meta!.attributes.brave_burst}</p>
                 </div>
               )}
               {hasArt && (
                 <div>
-                  <p className="text-[8px] font-black text-purple-500 uppercase mb-0.5">Art Skill</p>
+                  <p className="text-[8px] font-black text-red-500 uppercase mb-0.5">Art Skill</p>
                   <p className="text-[10px] text-neutral-600 leading-snug">{meta!.attributes.art_skill}</p>
                 </div>
               )}
