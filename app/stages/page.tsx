@@ -40,21 +40,25 @@ function EnemyUnitIcon({ heroId }: { heroId: number }) {
   const [imageUrl, setImageUrl] = useState<string | null>(heroMetaCache[String(heroId)] ?? null);
   const [attribute, setAttribute] = useState<number | null>(heroAttrCache[String(heroId)] ?? null);
 
+  // 画像取得
   useEffect(() => {
-    if (heroMetaCache[String(heroId)]) {
-      setImageUrl(heroMetaCache[String(heroId)]);
-      setAttribute(heroAttrCache[String(heroId)] ?? null);
-      return;
-    }
+    if (heroMetaCache[String(heroId)]) { setImageUrl(heroMetaCache[String(heroId)]); return; }
     fetch(`/api/hero/metadata/${heroId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.image) {
-          heroMetaCache[String(heroId)] = d.image;
-          setImageUrl(d.image);
-        }
-      })
+      .then(d => { if (d?.image) { heroMetaCache[String(heroId)] = d.image; setImageUrl(d.image); } })
       .catch(() => {});
+  }, [heroId]);
+
+  // 属性: キャッシュ済みなら即セット、なければポーリングで待つ
+  useEffect(() => {
+    if (heroAttrCache[String(heroId)] != null) { setAttribute(heroAttrCache[String(heroId)]); return; }
+    const t = setInterval(() => {
+      if (heroAttrCache[String(heroId)] != null) {
+        setAttribute(heroAttrCache[String(heroId)]);
+        clearInterval(t);
+      }
+    }, 200);
+    return () => clearInterval(t);
   }, [heroId]);
 
   const attrInfo = attribute ? UNIT_ATTR_MAP[attribute] : null;
