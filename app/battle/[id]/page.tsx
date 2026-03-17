@@ -33,12 +33,14 @@ interface HeroMetadata {
 // /v1/heroes のゲームデータ（attribute はここだけにある）
 interface HeroGameData {
   hero_id: number;
-  rarity: number;    // 5=L(LL), 4=L?, 3=E?, 2=R, 1=U — NFTのrarity文字列と照合して確定
+  rarity: number;
   attribute: number; // 1=炎, 2=水, 3=樹, 4=雷, 5=光, 6=闇
   name: string;
   name_jp: string;
   lv: number;
   param: { hp: number; phy: number; int: number; vit: number; mnd: number; agi: number };
+  active?: number;   // BBスキルID → skills_v2.json で引く
+  passive?: number;  // アートスキルID → skills_v2.json で引く
 }
 
 // /v1/spheres のゲームデータ
@@ -50,6 +52,7 @@ interface SphereGameData {
   name_jp: string;
   lv: number;
   param: { hp: number; phy: number; int: number; vit: number; mnd: number; agi: number };
+  sphere_skill?: string;
 }
 
 type SelectedUnit = {
@@ -116,6 +119,33 @@ const UNIT_ATTR_IDS = [1, 2, 3, 4, 5, 6];
 // グローバルキャッシュ（再マウント時も再fetchしない）
 // ============================================================
 const heroMetaCache: Record<string, HeroMetadata> = {};
+
+// skills_v2.json キャッシュ
+let skillsCache: Record<string, { name?: string; desc?: string; condition?: string }> | null = null;
+let skillsFetching = false;
+let skillsCallbacks: (() => void)[] = [];
+
+function fetchSkills(cb: () => void) {
+  if (skillsCache) { cb(); return; }
+  skillsCallbacks.push(cb);
+  if (skillsFetching) return;
+  skillsFetching = true;
+  fetch('https://rsc.bravefrontierheroes.com/data/skills_v2.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      skillsCache = d ?? {};
+      skillsCallbacks.forEach(fn => fn());
+      skillsCallbacks = [];
+    })
+    .catch(() => { skillsCache = {}; skillsCallbacks.forEach(fn => fn()); skillsCallbacks = []; })
+    .finally(() => { skillsFetching = false; });
+}
+
+function getSkill(id?: number): { name?: string; desc?: string; condition?: string } | null {
+  if (!id || !skillsCache) return null;
+  const s = skillsCache[String(id)];
+  return s ?? null;
+}
 const heroMetaFetching = new Set<string>();
 
 function fetchHeroMeta(heroId: string, cb: (d: HeroMetadata) => void) {
@@ -177,48 +207,70 @@ function HeroDetailModal({ heroId, gameData, onClose }: {
   onClose: () => void;
 }) {
   const meta = useHeroMeta(heroId);
+  const [skillsReady, setSkillsReady] = useState(skillsCache !== null);
+  useEffect(() => { if (!skillsCache) fetchSkills(() => setSkillsReady(true)); }, []);
+
   const rarityLabel = meta ? (RARITY_LABEL[meta.attributes.rarity] ?? meta.attributes.rarity) : '';
   const attrInfo = gameData ? UNIT_ATTR_MAP[gameData.attribute] : null;
+  const bbSkill   = skillsReady ? getSkill(gameData?.active)  : null;
+  const artSkill  = skillsReady ? getSkill(gameData?.passive) : null;
+
+  // ステータス表示: HP/攻撃/魔攻/防御/魔防/敏捷
+  const STAT_ROWS: [string, number][] = meta ? [
+    ['HP',   meta.attributes.hp],
+    ['攻撃', meta.attributes.phy],
+    ['魔攻', meta.attributes.int],
+    ['防御', meta.attributes.def],
+    ['魔防', meta.attributes.spr],
+    ['敏捷', meta.attributes.agi],
+  ] : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-      <div className="bg-white border-2 border-neutral-900 rounded-xl max-w-sm w-full shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white border-2 border-neutral-900 rounded-xl max-w-sm w-full shadow-xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {meta ? (
           <>
-            <div className="relative">
-              <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-48 object-cover" />
+            <div className="relative flex-shrink-0">
+              <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-40 object-cover" />
               <button onClick={onClose} className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"><X className="w-4 h-4" /></button>
               <div className="absolute bottom-2 left-2 flex gap-1">
                 <span className="bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">{rarityLabel}</span>
-                {attrInfo && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${attrInfo.tw}`}>{attrInfo.label}</span>
-                )}
+                {attrInfo && <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${attrInfo.tw}`}>{attrInfo.label}</span>}
               </div>
             </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <p className="font-black text-sm uppercase">{meta.attributes.type_name}</p>
-                <p className="text-xs text-neutral-400 font-mono">Lv {meta.attributes.lv}</p>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              {/* 名前・Lv・ID */}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-black text-sm uppercase leading-tight">{meta.attributes.type_name}</p>
+                  <p className="text-xs text-neutral-400 font-mono">Lv {meta.attributes.lv}</p>
+                </div>
+                <span className="text-[10px] font-mono text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded flex-shrink-0">#{heroId}</span>
               </div>
+              {/* ステータス */}
               <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
-                {([['HP', meta.attributes.hp], ['PHY', meta.attributes.phy], ['INT', meta.attributes.int],
-                   ['AGI', meta.attributes.agi], ['SPR', meta.attributes.spr], ['DEF', meta.attributes.def]] as [string, number][]).map(([k, v]) => (
+                {STAT_ROWS.map(([k, v]) => (
                   <div key={k} className="bg-neutral-50 rounded px-2 py-1 flex justify-between">
                     <span className="text-neutral-400 font-bold">{k}</span>
                     <span className="font-bold">{(v ?? 0).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
+              {/* BB */}
               {meta.attributes.brave_burst && (
-                <div className="text-xs">
-                  <p className="font-black text-purple-700 text-[10px] uppercase mb-0.5">Brave Burst</p>
-                  <p className="text-neutral-600 leading-snug">{meta.attributes.brave_burst}</p>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-black text-purple-700 text-[10px] uppercase">Brave Burst</p>
+                  <p className="font-bold text-neutral-800">{meta.attributes.brave_burst}</p>
+                  {bbSkill?.condition && <p className="text-neutral-500 leading-snug">発動条件: {bbSkill.condition}</p>}
+                  {bbSkill?.desc && <p className="text-neutral-600 leading-snug">{bbSkill.desc}</p>}
                 </div>
               )}
+              {/* Art Skill */}
               {meta.attributes.art_skill && (
-                <div className="text-xs">
-                  <p className="font-black text-pink-700 text-[10px] uppercase mb-0.5">Art Skill</p>
-                  <p className="text-neutral-600 leading-snug">{meta.attributes.art_skill}</p>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-black text-pink-700 text-[10px] uppercase">Art Skill</p>
+                  <p className="font-bold text-neutral-800">{meta.attributes.art_skill}</p>
+                  {artSkill?.desc && <p className="text-neutral-600 leading-snug">{artSkill.desc}</p>}
                 </div>
               )}
             </div>
@@ -245,13 +297,13 @@ function SphereDetailModal({ gameData, onClose }: {
   const rarityLabel = SPHERE_RARITY_MAP[gameData.rarity] ?? '';
   const p = gameData.param;
   const PARAM_KEYS: [string, number][] = [
-    ['HP', p.hp ?? 0], ['PHY', p.phy ?? 0], ['INT', p.int ?? 0],
-    ['AGI', p.agi ?? 0], ['SPR', p.mnd ?? 0], ['DEF', p.vit ?? 0],
+    ['HP', p.hp ?? 0], ['攻撃', p.phy ?? 0], ['魔攻', p.int ?? 0],
+    ['防御', p.vit ?? 0], ['魔防', p.mnd ?? 0], ['敏捷', p.agi ?? 0],
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div className="bg-white border-2 border-neutral-900 rounded-xl max-w-xs w-full shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="relative bg-neutral-50 flex items-center justify-center h-36">
+        <div className="relative bg-neutral-50 flex items-center justify-center h-32">
           {imageUrl
             ? <img src={imageUrl} alt="" className="h-full object-contain" />
             : <div className="w-full h-full animate-pulse bg-neutral-200" />}
@@ -261,7 +313,15 @@ function SphereDetailModal({ gameData, onClose }: {
           )}
         </div>
         <div className="p-4 space-y-3">
-          <p className="font-black text-sm uppercase">{gameData.name_jp || gameData.name}</p>
+          {/* 名前・Lv・ID */}
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-black text-sm uppercase leading-tight">{gameData.name_jp || gameData.name}</p>
+              <p className="text-xs text-neutral-400 font-mono">Lv {gameData.lv}</p>
+            </div>
+            <span className="text-[10px] font-mono text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded flex-shrink-0">#{gameData.extension_id}</span>
+          </div>
+          {/* ステータス */}
           <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
             {PARAM_KEYS.map(([k, v]) => (v > 0 ? (
               <div key={k} className="bg-blue-50 rounded px-2 py-1 flex justify-between">
@@ -270,6 +330,13 @@ function SphereDetailModal({ gameData, onClose }: {
               </div>
             ) : null))}
           </div>
+          {/* スフィア効果 */}
+          {(gameData as any).sphere_skill && (
+            <div className="text-xs space-y-0.5">
+              <p className="font-black text-blue-700 text-[10px] uppercase">Sphere Skill</p>
+              <p className="text-neutral-600 leading-snug">{(gameData as any).sphere_skill}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -419,16 +486,16 @@ function SelectedUnitRow({ unit, onSphereClick, onSphereRemove, onRemove, onSkil
 
   // スフィア合算ステータス計算
   type StatKey = 'hp' | 'phy' | 'int' | 'agi' | 'spr' | 'def';
-  const STAT_KEYS: StatKey[] = ['hp', 'phy', 'int', 'agi', 'spr', 'def'];
-  const STAT_LABELS: Record<StatKey, string> = { hp: 'HP', phy: 'PHY', int: 'INT', agi: 'AGI', spr: 'SPR', def: 'DEF' };
+  const STAT_KEYS: StatKey[] = ['hp', 'phy', 'int', 'def', 'spr', 'agi'];
+  const STAT_LABELS: Record<StatKey, string> = { hp: 'HP', phy: '攻撃', int: '魔攻', def: '防御', spr: '魔防', agi: '敏捷' };
   const baseStats = meta?.attributes
     ? { hp: meta.attributes.hp, phy: meta.attributes.phy, int: meta.attributes.int,
         agi: meta.attributes.agi, spr: meta.attributes.spr, def: meta.attributes.def }
     : null;
   const sphereBonus = STAT_KEYS.reduce((acc, k) => {
     const gd0 = sphereGameData?.[0]; const gd1 = sphereGameData?.[1];
-    acc[k] = ((k === 'hp' ? gd0?.param?.hp : k === 'phy' ? gd0?.param?.phy : k === 'int' ? gd0?.param?.int : k === 'agi' ? gd0?.param?.agi : k === 'spr' ? gd0?.param?.mnd : gd0?.param?.vit) ?? 0)
-           + ((k === 'hp' ? gd1?.param?.hp : k === 'phy' ? gd1?.param?.phy : k === 'int' ? gd1?.param?.int : k === 'agi' ? gd1?.param?.agi : k === 'spr' ? gd1?.param?.mnd : gd1?.param?.vit) ?? 0);
+    acc[k] = ((k === 'hp' ? gd0?.param?.hp : k === 'phy' ? gd0?.param?.phy : k === 'int' ? gd0?.param?.int : k === 'agi' ? gd0?.param?.agi : k === 'spr' ? gd0?.param?.mnd : k === 'def' ? gd0?.param?.vit : gd0?.param?.agi) ?? 0)
+           + ((k === 'hp' ? gd1?.param?.hp : k === 'phy' ? gd1?.param?.phy : k === 'int' ? gd1?.param?.int : k === 'agi' ? gd1?.param?.agi : k === 'spr' ? gd1?.param?.mnd : k === 'def' ? gd1?.param?.vit : gd1?.param?.agi) ?? 0);
     return acc;
   }, {} as Record<StatKey, number>);
   const totalStats = baseStats
