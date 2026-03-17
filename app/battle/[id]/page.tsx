@@ -53,6 +53,7 @@ interface SphereGameData {
   lv: number;
   param: { hp: number; phy: number; int: number; vit: number; mnd: number; agi: number };
   sphere_skill?: string;
+  active?: number; // スフィアスキルID → skills_v2.json で引く
 }
 
 type SelectedUnit = {
@@ -321,8 +322,11 @@ function SphereDetailModal({ gameData, onClose }: {
   gameData?: SphereGameData;
   onClose: () => void;
 }) {
+  const [skillsReady, setSkillsReady] = useState(skillsCache !== null);
+  useEffect(() => { if (!skillsCache) fetchSkills(() => setSkillsReady(true)); }, []);
   if (!gameData) return null;
   const imageUrl = getSphereImageUrl(gameData);
+  const sphereSkill = skillsReady ? getSkill(gameData.active) : null;
   const rarityLabel = SPHERE_RARITY_MAP[gameData.rarity] ?? '';
   const p = gameData.param;
   const PARAM_KEYS: [string, number][] = [
@@ -360,10 +364,14 @@ function SphereDetailModal({ gameData, onClose }: {
             ) : null))}
           </div>
           {/* スフィア効果 */}
-          {gameData.sphere_skill && (
-            <div className="text-xs space-y-0.5">
+          {sphereSkill && sphereSkill.effects.length > 0 && (
+            <div className="text-xs space-y-1">
               <p className="font-black text-blue-700 text-[10px] uppercase">Sphere Skill</p>
-              <p className="text-neutral-600 leading-snug">{gameData.sphere_skill}</p>
+              <ul className="space-y-0.5">
+                {sphereSkill.effects.map((e, i) => (
+                  <li key={i} className="text-neutral-600 leading-snug pl-2 border-l-2 border-blue-200">{e}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
