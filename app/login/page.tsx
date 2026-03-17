@@ -69,17 +69,14 @@ function LoginForm() {
 
       <div className="w-full max-w-md cyber-card rounded-xl p-8">
         <div className="space-y-6 text-center">
-          <div className="mx-auto w-20 h-20 flex items-center justify-center border-2 border-neutral-900 bg-white">
-            <Bot className="w-10 h-10 text-neutral-900" />
+          <div className="mx-auto flex items-center justify-center">
+            <Bot className="w-12 h-12 text-neutral-900" />
           </div>
 
-          <div className="space-y-2">
+          <div>
             <h1 className="text-2xl font-bold text-neutral-900 tracking-widest uppercase glitch-text" data-text="Brave Frontier Heroes Arena">
               Brave Frontier Heroes Arena
             </h1>
-            <p className="text-neutral-500 font-mono text-xs tracking-wider">
-              ACCESS RESTRICTED // AUTH REQUIRED
-            </p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -95,14 +92,14 @@ function LoginForm() {
 
             <button
               onClick={handleLogin}
-              className="w-full h-14 cyber-button text-lg font-bold flex items-center justify-center gap-3"
+              className="w-full h-12 cyber-button rounded-xl text-base font-bold flex items-center justify-center gap-3"
             >
               <LogIn className="w-5 h-5" />
-              CONNECT
+              ログイン
             </button>
 
-            <p className="text-[10px] text-center text-neutral-500 mt-6 font-mono uppercase">
-              ブレヒロにログインします
+            <p className="text-xs text-center text-neutral-400 mt-3 font-mono">
+              BFH Arenaを使うにはブレヒロアカウントが必要です
             </p>
           </div>
         </div>
