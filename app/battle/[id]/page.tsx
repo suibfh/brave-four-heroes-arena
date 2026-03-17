@@ -121,7 +121,10 @@ const UNIT_ATTR_IDS = [1, 2, 3, 4, 5, 6];
 const heroMetaCache: Record<string, HeroMetadata> = {};
 
 // skills_v2.json キャッシュ
-let skillsCache: Record<string, { name?: string; desc?: string; condition?: string }> | null = null;
+// 構造: [{skill_id, name:{ja,...}, description:{ja:{condition?,effects:[]}}}]
+// → skill_id をキーにしたマップに変換して使う
+interface SkillEntry { condition?: string; effects: string[] }
+let skillsCache: Record<string, SkillEntry> | null = null;
 let skillsFetching = false;
 let skillsCallbacks: (() => void)[] = [];
 
@@ -132,8 +135,20 @@ function fetchSkills(cb: () => void) {
   skillsFetching = true;
   fetch('https://rsc.bravefrontierheroes.com/data/skills_v2.json')
     .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      skillsCache = d ?? {};
+    .then((arr: any[]) => {
+      const map: Record<string, SkillEntry> = {};
+      if (Array.isArray(arr)) {
+        arr.forEach(s => {
+          const ja = s?.description?.ja;
+          if (s?.skill_id != null) {
+            map[String(s.skill_id)] = {
+              condition: ja?.condition,
+              effects: ja?.effects ?? [],
+            };
+          }
+        });
+      }
+      skillsCache = map;
       skillsCallbacks.forEach(fn => fn());
       skillsCallbacks = [];
     })
@@ -141,10 +156,9 @@ function fetchSkills(cb: () => void) {
     .finally(() => { skillsFetching = false; });
 }
 
-function getSkill(id?: number): { name?: string; desc?: string; condition?: string } | null {
+function getSkill(id?: number): SkillEntry | null {
   if (!id || !skillsCache) return null;
-  const s = skillsCache[String(id)];
-  return s ?? null;
+  return skillsCache[String(id)] ?? null;
 }
 const heroMetaFetching = new Set<string>();
 
@@ -212,8 +226,9 @@ function HeroDetailModal({ heroId, gameData, onClose }: {
 
   const rarityLabel = meta ? (RARITY_LABEL[meta.attributes.rarity] ?? meta.attributes.rarity) : '';
   const attrInfo = gameData ? UNIT_ATTR_MAP[gameData.attribute] : null;
-  const bbSkill   = skillsReady ? getSkill(gameData?.active)  : null;
-  const artSkill  = skillsReady ? getSkill(gameData?.passive) : null;
+  // APIの active=アートスキルID、passive=BBスキルID（名称と逆対応）
+  const bbSkill  = skillsReady ? getSkill(gameData?.passive) : null;
+  const artSkill = skillsReady ? getSkill(gameData?.active)  : null;
 
   // ステータス表示: HP/攻撃/魔攻/防御/魔防/敏捷
   const STAT_ROWS: [string, number][] = meta ? [
@@ -258,19 +273,33 @@ function HeroDetailModal({ heroId, gameData, onClose }: {
               </div>
               {/* BB */}
               {meta.attributes.brave_burst && (
-                <div className="text-xs space-y-0.5">
+                <div className="text-xs space-y-1">
                   <p className="font-black text-purple-700 text-[10px] uppercase">Brave Burst</p>
                   <p className="font-bold text-neutral-800">{meta.attributes.brave_burst}</p>
-                  {bbSkill?.condition && <p className="text-neutral-500 leading-snug">発動条件: {bbSkill.condition}</p>}
-                  {bbSkill?.desc && <p className="text-neutral-600 leading-snug">{bbSkill.desc}</p>}
+                  {bbSkill?.condition && (
+                    <p className="text-neutral-400 leading-snug">発動条件: {bbSkill.condition}</p>
+                  )}
+                  {bbSkill && bbSkill.effects.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {bbSkill.effects.map((e, i) => (
+                        <li key={i} className="text-neutral-600 leading-snug pl-2 border-l-2 border-purple-200">{e}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
               {/* Art Skill */}
               {meta.attributes.art_skill && (
-                <div className="text-xs space-y-0.5">
+                <div className="text-xs space-y-1">
                   <p className="font-black text-pink-700 text-[10px] uppercase">Art Skill</p>
                   <p className="font-bold text-neutral-800">{meta.attributes.art_skill}</p>
-                  {artSkill?.desc && <p className="text-neutral-600 leading-snug">{artSkill.desc}</p>}
+                  {artSkill && artSkill.effects.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {artSkill.effects.map((e, i) => (
+                        <li key={i} className="text-neutral-600 leading-snug pl-2 border-l-2 border-pink-200">{e}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>
@@ -331,10 +360,10 @@ function SphereDetailModal({ gameData, onClose }: {
             ) : null))}
           </div>
           {/* スフィア効果 */}
-          {(gameData as any).sphere_skill && (
+          {gameData.sphere_skill && (
             <div className="text-xs space-y-0.5">
               <p className="font-black text-blue-700 text-[10px] uppercase">Sphere Skill</p>
-              <p className="text-neutral-600 leading-snug">{(gameData as any).sphere_skill}</p>
+              <p className="text-neutral-600 leading-snug">{gameData.sphere_skill}</p>
             </div>
           )}
         </div>
