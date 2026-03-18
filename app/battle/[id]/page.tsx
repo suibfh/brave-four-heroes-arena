@@ -759,6 +759,7 @@ export default function BattlePage() {
               <DeckTemplateList
                 deckTemplates={(deckData as any)?.deck_templates ?? []}
                 questDeckTemplates={(deckData as any)?.quest_deck_templates ?? []}
+                sphereGameMap={sphereGameMap}
                 onLoad={loadDeckTemplate}
               />
             )}

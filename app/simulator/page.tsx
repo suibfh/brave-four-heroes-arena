@@ -27,7 +27,7 @@ import { useHeroMeta } from '@/src/components/battle/HeroDetailModal';
 import { UnitMiniCard } from '@/src/components/battle/UnitMiniCard';
 import { SphereMiniCard } from '@/src/components/battle/SphereMiniCard';
 import { SelectedUnitRow } from '@/src/components/battle/SelectedUnitRow';
-import { toFastUnitImageUrl } from '@/src/lib/battle/imageUrl';
+import { toFastUnitImageUrl, getSphereImageUrl } from '@/src/lib/battle/imageUrl';
 
 // ============================================================
 // シミュレータ用デッキカード（味方/敵反映ボタン付き）
@@ -46,7 +46,7 @@ function SimDeckUnitIcon({ heroId }: { heroId: string }) {
   void tick;
   const meta = heroMetaCache[heroId] ?? null;
   return (
-    <div className="w-7 h-7 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
+    <div className="w-10 h-10 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
       {meta?.image
         ? <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-full object-cover" />
         : <div className="w-full h-full animate-pulse bg-neutral-200" />}
@@ -57,23 +57,47 @@ function SimDeckUnitIcon({ heroId }: { heroId: string }) {
 interface SimDeckCardProps {
   deck: DeckTemplate;
   label: string;
+  sphereGameMap: Record<string, SphereGameData>;
   onLoadAlly: (deck: DeckTemplate) => void;
   onLoadEnemy: (deck: DeckTemplate) => void;
 }
 
-function SimDeckCard({ deck, label, onLoadAlly, onLoadEnemy }: SimDeckCardProps) {
+function SimDeckCard({ deck, label, sphereGameMap, onLoadAlly, onLoadEnemy }: SimDeckCardProps) {
   const sorted = [...deck.units].sort((a, b) => a.position - b.position);
+  const allSpheres = sorted.flatMap(u =>
+    u.extension_ids
+      .filter((id: number) => id && id !== 0)
+      .map((id: number) => sphereGameMap[String(id)])
+      .filter((s: SphereGameData | undefined): s is SphereGameData => !!s)
+  );
+  const hasSpheres = allSpheres.length > 0;
   return (
-    <div className="border-2 border-neutral-200 rounded-lg p-2 space-y-2">
+    <div className="border-2 border-neutral-200 rounded-lg p-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
         <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
       </div>
-      <div className="flex gap-1 flex-wrap">
+      {/* ユニット行 */}
+      <div className="flex gap-1.5 flex-wrap">
         {sorted.map((u, i) => (
           <SimDeckUnitIcon key={i} heroId={String(u.hero_id)} />
         ))}
       </div>
+      {/* スフィア行 */}
+      {hasSpheres && (
+        <div className="flex gap-1 flex-wrap">
+          {allSpheres.map((s, i) => {
+            const url = getSphereImageUrl(s);
+            return (
+              <div key={i} className="w-6 h-6 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
+                {url
+                  ? <img src={url} alt="" className="w-full h-full object-contain p-px" />
+                  : <div className="w-full h-full animate-pulse bg-neutral-200" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* 反映ボタン */}
       <div className="flex gap-1.5 pt-0.5">
         <button
@@ -96,11 +120,12 @@ function SimDeckCard({ deck, label, onLoadAlly, onLoadEnemy }: SimDeckCardProps)
 interface SimDeckListProps {
   deckTemplates: DeckTemplate[];
   questDeckTemplates: DeckTemplate[];
+  sphereGameMap: Record<string, SphereGameData>;
   onLoadAlly: (deck: DeckTemplate) => void;
   onLoadEnemy: (deck: DeckTemplate) => void;
 }
 
-function SimDeckList({ deckTemplates, questDeckTemplates, onLoadAlly, onLoadEnemy }: SimDeckListProps) {
+function SimDeckList({ deckTemplates, questDeckTemplates, sphereGameMap, onLoadAlly, onLoadEnemy }: SimDeckListProps) {
   if (deckTemplates.length === 0 && questDeckTemplates.length === 0) {
     return (
       <p className="text-[10px] text-neutral-400 font-mono py-4 text-center">
@@ -115,7 +140,7 @@ function SimDeckList({ deckTemplates, questDeckTemplates, onLoadAlly, onLoadEnem
           <p className="text-[9px] font-black text-neutral-400 uppercase">通常パーティ</p>
           {deckTemplates.map((deck, i) => (
             <SimDeckCard key={deck.jin_id} deck={deck} label={`パーティ ${i + 1}`}
-              onLoadAlly={onLoadAlly} onLoadEnemy={onLoadEnemy} />
+              sphereGameMap={sphereGameMap} onLoadAlly={onLoadAlly} onLoadEnemy={onLoadEnemy} />
           ))}
         </div>
       )}
@@ -124,7 +149,7 @@ function SimDeckList({ deckTemplates, questDeckTemplates, onLoadAlly, onLoadEnem
           <p className="text-[9px] font-black text-neutral-400 uppercase">クエストパーティ</p>
           {questDeckTemplates.map((deck, i) => (
             <SimDeckCard key={deck.jin_id} deck={deck} label={`クエストパーティ ${i + 1}`}
-              onLoadAlly={onLoadAlly} onLoadEnemy={onLoadEnemy} />
+              sphereGameMap={sphereGameMap} onLoadAlly={onLoadAlly} onLoadEnemy={onLoadEnemy} />
           ))}
         </div>
       )}
@@ -1010,6 +1035,7 @@ export default function SimulatorPage() {
                 deckTemplates={(deckData as any)?.deck_templates ?? []}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 questDeckTemplates={(deckData as any)?.quest_deck_templates ?? []}
+                sphereGameMap={sphereGameMap}
                 onLoadAlly={deck => loadDeck(deck, 'ally')}
                 onLoadEnemy={deck => loadDeck(deck, 'enemy')}
               />
