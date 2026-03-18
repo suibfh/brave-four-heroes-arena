@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import { LogOut, IdCard, Swords, PersonStanding, Sword, ExternalLink, FlaskConical } from 'lucide-react';
+import { LogOut, IdCard, Swords, PersonStanding, Sword, ExternalLink } from 'lucide-react';
 import { CLIENT_ID, CLIENT_SECRET } from '@/src/config/env';
 import { redirect } from 'next/navigation';
 import { useGetV1Me } from '@/src/api/generated/user/user';
@@ -175,11 +175,11 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-neutral-900 font-bold flex items-center uppercase">
-                  <FlaskConical className="w-6 h-6 mr-2 text-violet-600" />
-                  おれvsおれ
+                  <Swords className="w-6 h-6 mr-2 text-neutral-600" />
+                  おれ vs おれ
                 </CardTitle>
                 <CardDescription className="text-neutral-500 font-mono mt-1">
-                  バトルシミュレータ
+                  テンプレパーティバトルシミュレータ
                 </CardDescription>
               </div>
               <ExternalLink className="w-5 h-5 text-neutral-400" />

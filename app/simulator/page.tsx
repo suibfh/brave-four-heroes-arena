@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import {
   ChevronLeft, Swords, Crown, Skull, Minus,
-  ExternalLink, Search, X, Users, Sword,
+  ExternalLink, Search, X, Users, Sword, Shield,
 } from 'lucide-react';
 import { useGetV1Me } from '@/src/api/generated/user/user';
 import { useGetV1MeUnits, useGetV1MeSpheres } from '@/src/api/generated/assets/assets';
@@ -202,7 +202,12 @@ function PartyPanel({
       {/* セクションヘッダー */}
       <div className="flex items-center justify-between">
         <p className={`text-[11px] font-black uppercase tracking-wider ${labelCls}`}>
-          {isAlly ? '⚔ 味方' : '💀 敵'} ({selectedUnits.length}/{maxUnits})
+          <span className="flex items-center gap-1">
+            {isAlly
+              ? <Sword className="w-3 h-3" />
+              : <Shield className="w-3 h-3" />}
+            {isAlly ? '味方' : '敵'} ({selectedUnits.length}/{maxUnits})
+          </span>
         </p>
         {selectedUnits.length >= 2 && (
           <button
@@ -345,9 +350,8 @@ export default function SimulatorPage() {
 
   // ---- UI 状態 ----
   // タブ: モバイルは全タブ、PCは asset/deck タブ
-  const [activeTab, setActiveTab] = useState<'ally' | 'enemy' | 'asset' | 'decks'>('decks');
-  // PC用アセットサブタブ
-  const [assetTab, setAssetTab]   = useState<'units' | 'spheres'>('units');
+  const [activeTab, setActiveTab] = useState<'party' | 'units' | 'spheres' | 'decks'>('decks');
+
   const [unitSearch,   setUnitSearch]   = useState('');
   const [sphereSearch, setSphereSearch] = useState('');
   const [unitRarity,   setUnitRarity]   = useState<string | null>(null);
@@ -520,7 +524,7 @@ export default function SimulatorPage() {
     }
     setter(next);
     // モバイルでは対応タブへ移動
-    setActiveTab(side);
+    setActiveTab('party');
   };
 
   const handleBattle = () => {
@@ -629,14 +633,14 @@ export default function SimulatorPage() {
         <div className="max-w-4xl mx-auto space-y-3">
           <div className="flex items-center gap-3 bg-white border-2 border-neutral-900 rounded-xl p-3">
             <Button variant="outline" size="icon"
-              onClick={() => { setSpherePickTarget(null); setActiveTab(editingSide); }}
+              onClick={() => { setSpherePickTarget(null); setActiveTab('party'); }}
               className="cyber-button border-neutral-900 text-neutral-900 hover:bg-neutral-900 hover:text-white flex-shrink-0 w-8 h-8">
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <div className="flex-1">
               <h2 className="text-base font-black uppercase">スフィアを選択</h2>
               <p className="text-neutral-500 font-mono text-xs">
-                {editingSide === 'ally' ? '⚔ 味方' : '💀 敵'} — ユニット{spherePickTarget.unitIdx + 1} スロット{spherePickTarget.slotIdx + 1}
+                {editingSide === 'ally' ? '味方' : '敵'} — ユニット{spherePickTarget.unitIdx + 1} スロット{spherePickTarget.slotIdx + 1}
               </p>
             </div>
             <div className="relative">
@@ -662,7 +666,7 @@ export default function SimulatorPage() {
                 <SphereMiniCard key={id} gameData={sphereGameMap[id]} onClick={() => {
                   activeSetter.assignSphere(spherePickTarget.slotIdx, id, spherePickTarget.unitIdx);
                   setSpherePickTarget(null);
-                  setActiveTab(editingSide);
+                  setActiveTab('party');
                 }} />
               ))}
             </div>
@@ -685,8 +689,8 @@ export default function SimulatorPage() {
           <ChevronLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-black text-neutral-900 uppercase tracking-tight">おれvsおれ</h1>
-          <p className="text-[10px] text-neutral-400 font-mono">バトルシミュレータ</p>
+          <h1 className="text-sm font-black text-neutral-900 uppercase tracking-tight">おれ vs おれ</h1>
+          <p className="text-[10px] text-neutral-400 font-mono">テンプレパーティバトルシミュレータ</p>
         </div>
         <Button
           className="!bg-violet-700 hover:!bg-violet-800 !text-white font-black uppercase px-4 h-9 flex-shrink-0 disabled:opacity-40 text-xs"
@@ -694,7 +698,7 @@ export default function SimulatorPage() {
           onClick={handleBattle}
         >
           {isBattling
-            ? <span className="animate-pulse">⚔️ 戦闘中...</span>
+            ? <span className="animate-pulse flex items-center gap-1"><Swords className="w-3.5 h-3.5 mr-1" />戦闘中...</span>
             : <><Swords className="w-3.5 h-3.5 mr-1" />バトル！</>}
         </Button>
       </div>
@@ -711,7 +715,7 @@ export default function SimulatorPage() {
             onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-2 border-b border-neutral-100">
               <p className="text-xs font-black uppercase text-neutral-400">
-                {editingSide === 'ally' ? '⚔ 味方' : '💀 敵'} — 入れ替え先を選択
+                {editingSide === 'ally' ? '味方' : '敵'} — 入れ替え先を選択
               </p>
             </div>
             <div className="p-3 space-y-1.5">
@@ -738,25 +742,25 @@ export default function SimulatorPage() {
 
       {/* モバイルタブ */}
       <div className="lg:hidden flex border-b border-neutral-200 bg-white">
-        {(['ally', 'enemy', 'asset', 'decks'] as const).map(tab => (
+        {(['party', 'units', 'spheres', 'decks'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wide transition-colors ${
               activeTab === tab ? 'border-b-2 border-violet-600 text-violet-600' : 'text-neutral-400 hover:text-neutral-700'
             }`}>
-            {tab === 'ally'   ? `⚔ 味方(${allyCount})`
-             : tab === 'enemy' ? `💀 敵(${enemyCount})`
-             : tab === 'asset' ? 'ユニット'
+            {tab === 'party'    ? `味方/敵(${allyCount}+${enemyCount})`
+             : tab === 'units'   ? 'ユニット'
+             : tab === 'spheres' ? 'スフィア'
              : 'パーティ一覧'}
           </button>
         ))}
       </div>
 
       {/* ── メインレイアウト ── */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:grid lg:grid-cols-[1fr_320px_280px]">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:grid lg:grid-cols-[1fr_260px_260px_260px]">
 
         {/* ── 左: 味方 + 敵 パーティ ── */}
         <div className={`flex-col min-h-0 overflow-hidden border-r-2 border-neutral-200 ${
-          (activeTab === 'ally' || activeTab === 'enemy') ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
+          activeTab === 'party' ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
         }`}>
           <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-3">
             {/* 味方 */}
@@ -769,7 +773,7 @@ export default function SimulatorPage() {
               onUnitPickSlotSet={slotIdx => {
                 setEditingSide('ally');
                 setUnitPickSlot(slotIdx);
-                setActiveTab('asset');
+                setActiveTab('units');
               }}
               onSpherePickSet={target => {
                 setEditingSide('ally');
@@ -800,7 +804,7 @@ export default function SimulatorPage() {
               onUnitPickSlotSet={slotIdx => {
                 setEditingSide('enemy');
                 setUnitPickSlot(slotIdx);
-                setActiveTab('asset');
+                setActiveTab('units');
               }}
               onSpherePickSet={target => {
                 setEditingSide('enemy');
@@ -826,27 +830,15 @@ export default function SimulatorPage() {
 
         {/* ── 中: ユニット/スフィア（タブ切替） ── */}
         <div className={`flex-col min-h-0 overflow-hidden border-r-2 border-neutral-200 ${
-          activeTab === 'asset' ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
+          activeTab === 'units' ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
         }`}>
-          {/* PC用サブタブ */}
-          <div className="flex border-b border-neutral-200 bg-white flex-shrink-0">
-            {(['units', 'spheres'] as const).map(t => (
-              <button key={t} onClick={() => setAssetTab(t)}
-                className={`flex-1 py-2 text-[11px] font-black uppercase tracking-wide transition-colors ${
-                  assetTab === t ? 'border-b-2 border-violet-600 text-violet-600' : 'text-neutral-400 hover:text-neutral-700'
-                }`}>
-                {t === 'units' ? 'ユニット' : 'スフィア'}
-              </button>
-            ))}
-          </div>
-
           {/* ユニット一覧 */}
-          <div className={`flex-1 overflow-y-auto min-h-0 p-3 space-y-2 ${assetTab !== 'units' ? 'hidden' : ''}`}>
+          <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2">
             {/* 編集中サイド表示 */}
             <div className={`text-[10px] font-black px-2 py-1 rounded-lg ${
               editingSide === 'ally' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
             }`}>
-              {editingSide === 'ally' ? '⚔ 味方に追加中' : '💀 敵に追加中'}
+              {editingSide === 'ally' ? '味方に追加中' : '敵に追加中'}
               <span className="ml-2 text-neutral-400 font-normal">（パーティのユニット枠をタップで変更）</span>
             </div>
             <div className="relative">
@@ -880,7 +872,7 @@ export default function SimulatorPage() {
                 editingSide === 'ally' ? 'bg-blue-50 border-blue-300' : 'bg-red-50 border-red-300'
               }`}>
                 <p className={`text-xs font-black ${editingSide === 'ally' ? 'text-blue-700' : 'text-red-700'}`}>
-                  {editingSide === 'ally' ? '⚔ 味方' : '💀 敵'} 位置 {unitPickSlot + 1} にセット
+                  {editingSide === 'ally' ? '味方' : '敵'} 位置 {unitPickSlot + 1} にセット
                 </p>
                 <button onClick={() => setUnitPickSlot(null)}
                   className="text-neutral-400 hover:text-neutral-600">
@@ -911,10 +903,10 @@ export default function SimulatorPage() {
                           setter(prev => prev.map(u => u?.heroId === heroId ? null : u));
                         } else if (activeCount >= maxUnits) {
                           setSwapHeroId(heroId);
-                          setActiveTab(editingSide);
+                          setActiveTab('party');
                         } else {
                           activeSetter.assign(heroId, unitPickSlot ?? undefined);
-                          setActiveTab(editingSide);
+                          setActiveTab('party');
                         }
                       }}
                     />
@@ -924,8 +916,13 @@ export default function SimulatorPage() {
             )}
           </div>
 
-          {/* スフィア一覧 */}
-          <div className={`flex-1 overflow-y-auto min-h-0 p-3 space-y-2 ${assetTab !== 'spheres' ? 'hidden' : ''}`}>
+        </div>
+
+        {/* ── スフィア一覧 ── */}
+        <div className={`flex-col min-h-0 overflow-hidden border-r-2 border-neutral-200 ${
+          activeTab === 'spheres' ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
+        }`}>
+          <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
               <input type="text" placeholder="スフィア検索..." value={sphereSearch}
