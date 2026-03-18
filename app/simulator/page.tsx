@@ -64,40 +64,41 @@ interface SimDeckCardProps {
 
 function SimDeckCard({ deck, label, sphereGameMap, onLoadAlly, onLoadEnemy }: SimDeckCardProps) {
   const sorted = [...deck.units].sort((a, b) => a.position - b.position);
-  const allSpheres = sorted.flatMap(u =>
-    u.extension_ids
-      .filter((id: number) => id && id !== 0)
-      .map((id: number) => sphereGameMap[String(id)])
-      .filter((s: SphereGameData | undefined): s is SphereGameData => !!s)
-  );
-  const hasSpheres = allSpheres.length > 0;
   return (
     <div className="border-2 border-neutral-200 rounded-lg p-2 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
         <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
       </div>
-      {/* ユニット行 */}
-      <div className="flex gap-1.5 flex-wrap">
-        {sorted.map((u, i) => (
-          <SimDeckUnitIcon key={i} heroId={String(u.hero_id)} />
-        ))}
+      {/* ユニット+スフィアのセルを横並び */}
+      <div className="flex gap-2 flex-wrap">
+        {sorted.map((u, i) => {
+          const spheres = [
+            u.extension_ids[0] ? sphereGameMap[String(u.extension_ids[0])] ?? null : null,
+            u.extension_ids[1] ? sphereGameMap[String(u.extension_ids[1])] ?? null : null,
+          ];
+          const hasAnySphere = spheres.some(Boolean);
+          return (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              <SimDeckUnitIcon heroId={String(u.hero_id)} />
+              {hasAnySphere && (
+                <div className="flex gap-0.5">
+                  {spheres.map((s, si) => {
+                    const url = s ? getSphereImageUrl(s) : null;
+                    return s && url ? (
+                      <div key={si} className="w-6 h-6 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
+                        <img src={url} alt="" className="w-full h-full object-contain p-px" />
+                      </div>
+                    ) : (
+                      <div key={si} className="w-6 h-6 rounded border border-dashed border-neutral-200 bg-neutral-50 flex-shrink-0" />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {/* スフィア行 */}
-      {hasSpheres && (
-        <div className="flex gap-1 flex-wrap">
-          {allSpheres.map((s, i) => {
-            const url = getSphereImageUrl(s);
-            return (
-              <div key={i} className="w-6 h-6 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
-                {url
-                  ? <img src={url} alt="" className="w-full h-full object-contain p-px" />
-                  : <div className="w-full h-full animate-pulse bg-neutral-200" />}
-              </div>
-            );
-          })}
-        </div>
-      )}
       {/* 反映ボタン */}
       <div className="flex gap-1.5 pt-0.5">
         <button

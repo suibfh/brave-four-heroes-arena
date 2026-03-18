@@ -51,15 +51,6 @@ interface DeckCardProps {
 
 export function DeckCard({ deck, label, sphereGameMap, onLoad }: DeckCardProps) {
   const sorted = [...deck.units].sort((a, b) => a.position - b.position);
-  // デッキ内の全スフィアを位置順で収集（装備しているもののみ）
-  const allSpheres = sorted.flatMap(u =>
-    u.extension_ids
-      .filter(id => id && id !== 0)
-      .map(id => sphereGameMap[String(id)])
-      .filter((s): s is SphereGameData => !!s)
-  );
-  const hasSpheres = allSpheres.length > 0;
-
   return (
     <button
       onClick={() => onLoad(deck)}
@@ -69,20 +60,34 @@ export function DeckCard({ deck, label, sphereGameMap, onLoad }: DeckCardProps) 
         <span className="text-[10px] font-black text-neutral-500 uppercase">{label}</span>
         <span className="text-[9px] font-mono text-neutral-400">{sorted.length}体</span>
       </div>
-      {/* ユニット行 */}
-      <div className="flex gap-1.5 flex-wrap">
-        {sorted.map((u, i) => (
-          <DeckUnitIcon key={i} heroId={String(u.hero_id)} />
-        ))}
+      {/* ユニット+スフィアのセルを横並び */}
+      <div className="flex gap-2 flex-wrap">
+        {sorted.map((u, i) => {
+          const spheres = [
+            u.extension_ids[0] ? sphereGameMap[String(u.extension_ids[0])] ?? null : null,
+            u.extension_ids[1] ? sphereGameMap[String(u.extension_ids[1])] ?? null : null,
+          ];
+          const hasAnySphere = spheres.some(Boolean);
+          return (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              {/* ユニットアイコン */}
+              <DeckUnitIcon heroId={String(u.hero_id)} />
+              {/* スフィア2枠（常に表示、未装備は空枠） */}
+              {hasAnySphere && (
+                <div className="flex gap-0.5">
+                  {spheres.map((s, si) =>
+                    s ? (
+                      <DeckSphereIcon key={si} sphereData={s} />
+                    ) : (
+                      <div key={si} className="w-6 h-6 rounded border border-dashed border-neutral-200 bg-neutral-50 flex-shrink-0" />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {/* スフィア行（装備がある場合のみ） */}
-      {hasSpheres && (
-        <div className="flex gap-1 flex-wrap mt-1">
-          {allSpheres.map((s, i) => (
-            <DeckSphereIcon key={i} sphereData={s} />
-          ))}
-        </div>
-      )}
       <p className="text-[9px] text-red-500 font-black mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         ▶ タップして編成に反映
       </p>
