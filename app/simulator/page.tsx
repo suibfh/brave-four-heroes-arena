@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import {
-  ChevronLeft, Swords, Crown, Skull, Minus,
+  ChevronLeft, Swords, Minus,
   ExternalLink, Search, X, Sword, Shield, Copy, Check,
 } from 'lucide-react';
 import { useGetV1Me } from '@/src/api/generated/user/user';
@@ -645,11 +645,11 @@ export default function SimulatorPage() {
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-6">
           <Card className="cyber-card border-2 border-neutral-900 text-center overflow-hidden">
-            <div className={`p-8 ${isWin ? 'bg-yellow-50' : isDraw ? 'bg-neutral-100' : 'bg-red-50'}`}>
-              {isWin  ? <Crown  className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
+            <div className={`p-8 ${isWin ? 'bg-blue-50' : isDraw ? 'bg-neutral-100' : 'bg-red-50'}`}>
+              {isWin  ? <Sword  className="w-20 h-20 text-blue-500 mx-auto mb-4" />
                : isDraw ? <Minus className="w-20 h-20 text-neutral-500 mx-auto mb-4" />
-               :          <Skull className="w-20 h-20 text-red-500 mx-auto mb-4" />}
-              <h1 className={`text-5xl font-black uppercase tracking-widest ${isWin ? 'text-yellow-600' : isDraw ? 'text-neutral-600' : 'text-red-600'}`}>
+               :          <Shield className="w-20 h-20 text-red-500 mx-auto mb-4" />}
+              <h1 className={`text-5xl font-black uppercase tracking-widest ${isWin ? 'text-blue-600' : isDraw ? 'text-neutral-600' : 'text-red-600'}`}>
                 {isWin ? '味方の勝ち' : isDraw ? 'DRAW' : '敵の勝ち'}
               </h1>
             </div>
