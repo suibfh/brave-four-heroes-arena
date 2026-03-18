@@ -32,6 +32,25 @@ import { toFastUnitImageUrl, getSphereImageUrl } from '@/src/lib/battle/imageUrl
 // ============================================================
 // シミュレータ用デッキカード（味方/敵反映ボタン付き）
 // ============================================================
+// ---- スフィアメタデータキャッシュ（SBTスフィアのフォールバック用） ----
+const sphereMetaImageCache: Record<string, string | null> = {};
+const sphereMetaFetching = new Set<string>();
+
+function fetchSphereMetaImage(sphereId: string, cb: (url: string | null) => void): void {
+  if (sphereId in sphereMetaImageCache) { cb(sphereMetaImageCache[sphereId]); return; }
+  if (sphereMetaFetching.has(sphereId)) return;
+  sphereMetaFetching.add(sphereId);
+  fetch(`/api/sphere/metadata/${sphereId}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      const url: string | null = d?.image ?? null;
+      sphereMetaImageCache[sphereId] = url;
+      cb(url);
+    })
+    .catch(() => { sphereMetaImageCache[sphereId] = null; cb(null); })
+    .finally(() => sphereMetaFetching.delete(sphereId));
+}
+
 function SimDeckUnitIcon({ heroId }: { heroId: string }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -50,6 +69,38 @@ function SimDeckUnitIcon({ heroId }: { heroId: string }) {
       {meta?.image
         ? <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-full object-cover" />
         : <div className="w-full h-full animate-pulse bg-neutral-200" />}
+    </div>
+  );
+}
+
+// ---- SimDeckSphereIcon ----
+function SimDeckSphereIcon({ sphereId, sphereData }: {
+  sphereId: string | null;
+  sphereData: SphereGameData | null;
+}) {
+  const directUrl = sphereData ? getSphereImageUrl(sphereData) : null;
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(
+    directUrl ? null : (sphereId && sphereId in sphereMetaImageCache ? sphereMetaImageCache[sphereId] : null)
+  );
+
+  useEffect(() => {
+    if (directUrl || !sphereId) return;
+    if (sphereId in sphereMetaImageCache) { setFallbackUrl(sphereMetaImageCache[sphereId]); return; }
+    fetchSphereMetaImage(sphereId, url => setFallbackUrl(url));
+  }, [sphereId, directUrl]);
+
+  const url = directUrl ?? fallbackUrl;
+
+  if (!sphereData && !sphereId) {
+    return <div className="w-6 h-6 rounded border border-dashed border-neutral-200 bg-neutral-50 flex-shrink-0" />;
+  }
+  return (
+    <div className="w-6 h-6 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
+      {url
+        ? <img src={url} alt="" className="w-full h-full object-contain p-px" />
+        : <div className="w-full h-full bg-neutral-100 flex items-center justify-center">
+            <span className="text-[6px] text-neutral-300 font-mono leading-none">?</span>
+          </div>}
     </div>
   );
 }
@@ -83,16 +134,13 @@ function SimDeckCard({ deck, label, sphereGameMap, onLoadAlly, onLoadEnemy }: Si
               <SimDeckUnitIcon heroId={String(u.hero_id)} />
               {hasAnySphere && (
                 <div className="flex gap-0.5">
-                  {spheres.map((s, si) => {
-                    const url = s ? getSphereImageUrl(s) : null;
-                    return s && url ? (
-                      <div key={si} className="w-6 h-6 rounded overflow-hidden bg-neutral-100 flex-shrink-0 border border-neutral-200">
-                        <img src={url} alt="" className="w-full h-full object-contain p-px" />
-                      </div>
-                    ) : (
-                      <div key={si} className="w-6 h-6 rounded border border-dashed border-neutral-200 bg-neutral-50 flex-shrink-0" />
-                    );
-                  })}
+                  {spheres.map((s, si) => (
+                    <SimDeckSphereIcon
+                      key={si}
+                      sphereId={s ? String(u.extension_ids[si]) : null}
+                      sphereData={s}
+                    />
+                  ))}
                 </div>
               )}
             </div>
