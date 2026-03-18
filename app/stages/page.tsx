@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
-import { ChevronLeft, Swords, Star, Trophy, CheckCircle2, Circle, RotateCcw } from 'lucide-react';
+import { ChevronLeft, Swords, Trophy, CheckCircle2, Circle, RotateCcw } from 'lucide-react';
+import { DifficultyStars } from '@/src/components/ui/difficulty-stars';
 import { STAGES } from '@/src/config/stages';
 import { getAllClearRecords, isAllCleared, resetAllRecords, type ClearRecord } from '@/src/lib/clearRecords';
 import { usePostV1Heroes } from '@/src/api/generated/hero/hero';
@@ -80,16 +81,6 @@ function EnemyUnitIcon({ heroId }: { heroId: number }) {
 // ============================================================
 // ユーティリティ
 // ============================================================
-function DifficultyStars({ level }: { level: number }) {
-  return (
-    <div className="flex gap-1">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} className={`w-4 h-4 ${i < level ? 'text-yellow-500 fill-yellow-500' : 'text-neutral-300'}`} />
-      ))}
-    </div>
-  );
-}
-
 function ClearBadge({ record }: { record: ClearRecord | null }) {
   if (!record) return (
     <span className="flex items-center gap-1 text-[10px] font-black text-neutral-300 uppercase">
