@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import {
   ChevronLeft, Swords, Minus,
-  ExternalLink, Search, X, Sword, Shield, Copy, Check,
+  ExternalLink, Search, X, Sword, Shield, Copy, Check, ChevronDown,
 } from 'lucide-react';
 import { useGetV1Me } from '@/src/api/generated/user/user';
 import { useGetV1MeUnits, useGetV1MeSpheres } from '@/src/api/generated/assets/assets';
@@ -162,6 +162,259 @@ function SimDeckList({ deckTemplates, questDeckTemplates, sphereGameMap, onLoadA
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// SlotPickModal — ユニット/スフィアの配置先を選ぶモーダル
+// 味方（青）・敵（赤）最大10スロットをユニット+スフィアで表示
+// ============================================================
+interface SlotPickModalProps {
+  swapHeroId: string | null;
+  swapSphereId: string | null;
+  allySlots: (SelectedUnit | null)[];
+  enemySlots: (SelectedUnit | null)[];
+  sphereGameMap: Record<string, SphereGameData>;
+  onSelectUnit: (side: 'ally' | 'enemy', slotIdx: number) => void;
+  onSelectSphere: (side: 'ally' | 'enemy', unitIdx: number, slotIdx: number) => void;
+  onClose: () => void;
+}
+
+function SlotUnitRow({
+  unit, slotIdx, side, sphereGameMap, swapSphereId,
+  onSelectUnit, onSelectSphere,
+}: {
+  unit: SelectedUnit; slotIdx: number; side: 'ally' | 'enemy';
+  sphereGameMap: Record<string, SphereGameData>;
+  swapSphereId: string | null;
+  onSelectUnit: (side: 'ally' | 'enemy', slotIdx: number) => void;
+  onSelectSphere: (side: 'ally' | 'enemy', unitIdx: number, slotIdx: number) => void;
+}) {
+  const meta = useHeroMeta(unit.heroId);
+  const isAlly = side === 'ally';
+  const rowCls = isAlly
+    ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+    : 'bg-red-50 border-red-200 hover:bg-red-100';
+  const sphereSlotCls = isAlly
+    ? 'border-blue-300 bg-blue-50 hover:bg-blue-200'
+    : 'border-red-300 bg-red-50 hover:bg-red-200';
+  const emptySphereCls = isAlly
+    ? 'border-dashed border-blue-200 bg-white hover:border-blue-400'
+    : 'border-dashed border-red-200 bg-white hover:border-red-400';
+
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${rowCls}`}>
+      {/* ユニットアイコン（クリックでユニット配置先に選択） */}
+      <button
+        onClick={() => !swapSphereId && onSelectUnit(side, slotIdx)}
+        className={`flex items-center gap-2 flex-1 min-w-0 text-left ${!swapSphereId ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className="w-8 h-8 flex-shrink-0 rounded overflow-hidden bg-neutral-100 border border-neutral-200">
+          {meta?.image
+            ? <img src={toFastUnitImageUrl(meta.image)} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full animate-pulse bg-neutral-200" />}
+        </div>
+        <p className="text-xs font-bold uppercase truncate">
+          {meta?.attributes?.type_name ?? `#${unit.heroId}`}
+        </p>
+      </button>
+      {/* スフィアスロット2つ（スフィア装備時のみクリック可） */}
+      <div className="flex gap-1 flex-shrink-0">
+        {[0, 1].map(si => {
+          const sId = unit.sphereIds[si];
+          const sData = sId ? sphereGameMap[sId] : null;
+          const imgUrl = sData ? getSphereImageUrl(sData) : null;
+          return (
+            <button
+              key={si}
+              onClick={() => swapSphereId && onSelectSphere(side, slotIdx, si)}
+              className={`w-7 h-7 rounded border flex items-center justify-center overflow-hidden transition-colors ${
+                swapSphereId
+                  ? sId
+                    ? `${sphereSlotCls} ring-1 ring-offset-1 ${isAlly ? 'ring-blue-400' : 'ring-red-400'}`
+                    : `${emptySphereCls} border`
+                  : 'border-neutral-200 bg-neutral-50 cursor-default'
+              }`}
+              disabled={!swapSphereId}
+            >
+              {imgUrl
+                ? <img src={imgUrl} alt="" className="w-full h-full object-contain p-0.5" />
+                : <span className="text-[8px] text-neutral-300">{si + 1}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SlotPickModal({
+  swapHeroId, swapSphereId, allySlots, enemySlots, sphereGameMap,
+  onSelectUnit, onSelectSphere, onClose,
+}: SlotPickModalProps) {
+  const isSpherePick = !!swapSphereId;
+  const allyFilled  = allySlots.filter(Boolean).length;
+  const enemyFilled = enemySlots.filter(Boolean).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-md shadow-xl overflow-hidden max-h-[80vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        {/* ヘッダー */}
+        <div className="px-4 pt-4 pb-2 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="text-xs font-black uppercase text-neutral-700">
+              {isSpherePick ? 'スフィアの装備先を選択' : 'ユニットの配置先を選択'}
+            </p>
+            <p className="text-[10px] text-neutral-400 font-mono mt-0.5">
+              {isSpherePick
+                ? 'スフィアスロット（数字）をタップして装備'
+                : 'ユニット行をタップして配置'}
+            </p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-neutral-100 text-neutral-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {/* 味方・敵リスト */}
+        <div className="overflow-y-auto flex-1 p-3 space-y-3">
+          {/* 味方 */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+              <Sword className="w-3 h-3" />味方 ({allyFilled}/5)
+            </p>
+            {allySlots.map((u, slotIdx) =>
+              u ? (
+                <SlotUnitRow key={slotIdx} unit={u} slotIdx={slotIdx} side="ally"
+                  sphereGameMap={sphereGameMap} swapSphereId={swapSphereId}
+                  onSelectUnit={onSelectUnit} onSelectSphere={onSelectSphere} />
+              ) : (
+                // 空きスロット: ユニット配置時のみ表示
+                !isSpherePick && (
+                  <button key={`ally-empty-${slotIdx}`}
+                    onClick={() => onSelectUnit('ally', slotIdx)}
+                    className="w-full flex items-center gap-2 rounded-lg border border-dashed border-blue-200 px-2 py-1.5 bg-white hover:bg-blue-50 transition-colors">
+                    <div className="w-8 h-8 rounded-full border-dashed border-2 border-blue-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-300 text-base font-black">＋</span>
+                    </div>
+                    <p className="text-xs font-black text-blue-300 uppercase">位置 {slotIdx + 1}（空き）</p>
+                  </button>
+                )
+              )
+            )}
+          </div>
+          {/* 敵 */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black text-red-600 uppercase flex items-center gap-1">
+              <Shield className="w-3 h-3" />敵 ({enemyFilled}/5)
+            </p>
+            {enemySlots.map((u, slotIdx) =>
+              u ? (
+                <SlotUnitRow key={slotIdx} unit={u} slotIdx={slotIdx} side="enemy"
+                  sphereGameMap={sphereGameMap} swapSphereId={swapSphereId}
+                  onSelectUnit={onSelectUnit} onSelectSphere={onSelectSphere} />
+              ) : (
+                !isSpherePick && (
+                  <button key={`enemy-empty-${slotIdx}`}
+                    onClick={() => onSelectUnit('enemy', slotIdx)}
+                    className="w-full flex items-center gap-2 rounded-lg border border-dashed border-red-200 px-2 py-1.5 bg-white hover:bg-red-50 transition-colors">
+                    <div className="w-8 h-8 rounded-full border-dashed border-2 border-red-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-red-300 text-base font-black">＋</span>
+                    </div>
+                    <p className="text-xs font-black text-red-300 uppercase">位置 {slotIdx + 1}（空き）</p>
+                  </button>
+                )
+              )
+            )}
+          </div>
+        </div>
+        <div className="px-3 pb-3 flex-shrink-0">
+          <button onClick={onClose}
+            className="w-full py-2 text-xs font-black text-neutral-400 hover:text-neutral-700 border border-neutral-200 rounded-lg">
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SpherePickModal — パーティのスフィアスロットをタップしたときのモーダル
+// ============================================================
+interface SpherePickModalProps {
+  target: { unitIdx: number; slotIdx: number };
+  editingSide: 'ally' | 'enemy';
+  filteredSpheres: string[];
+  sphereGameMap: Record<string, SphereGameData>;
+  isLoadingSpheres: boolean;
+  sphereSearch: string;
+  sphereRarity: string | null;
+  onSphereSearch: (v: string) => void;
+  onSphereRarity: (v: string | null) => void;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}
+
+function SpherePickModal({
+  target, editingSide, filteredSpheres, sphereGameMap, isLoadingSpheres,
+  sphereSearch, sphereRarity, onSphereSearch, onSphereRarity, onSelect, onClose,
+}: SpherePickModalProps) {
+  const isAlly = editingSide === 'ally';
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-lg shadow-xl overflow-hidden max-h-[85vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        {/* ヘッダー */}
+        <div className="px-4 pt-4 pb-2 border-b border-neutral-100 flex-shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-black uppercase">スフィアを選択</p>
+              <p className="text-[10px] text-neutral-400 font-mono">
+                {isAlly ? '味方' : '敵'} — ユニット{target.unitIdx + 1} スロット{target.slotIdx + 1}
+              </p>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-neutral-100 text-neutral-400">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-2 items-center">
+            <div className="relative flex-1">
+              <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input type="text" placeholder="検索..." value={sphereSearch}
+                onChange={e => onSphereSearch(e.target.value)}
+                className="w-full pl-6 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:border-blue-500" />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {SPHERE_RARITY_FILTERS.map(r => (
+                <FilterBtn key={r} label={r} active={sphereRarity === r}
+                  onClick={() => onSphereRarity(sphereRarity === r ? null : r)} />
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* スフィア一覧 */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {isLoadingSpheres ? (
+            <div className="grid grid-cols-5 gap-2">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-neutral-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : !filteredSpheres.length ? (
+            <p className="text-center text-neutral-400 font-mono text-xs py-8">見つかりません</p>
+          ) : (
+            <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+              {filteredSpheres.map(id => (
+                <SphereMiniCard key={id} gameData={sphereGameMap[id]} onClick={() => onSelect(id)} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -426,9 +679,10 @@ export default function SimulatorPage() {
 
   // どちらのサイドを編集中か
   const [editingSide,     setEditingSide]     = useState<'ally' | 'enemy'>('ally');
-  const [unitPickSlot,    setUnitPickSlot]     = useState<number | null>(null);
+  // unitPickSlot は廃止（モーダルで直接選択）
   const [spherePickTarget, setSpherePickTarget] = useState<{ unitIdx: number; slotIdx: number } | null>(null);
   const [swapHeroId,      setSwapHeroId]       = useState<string | null>(null);
+  const [swapSphereId,    setSwapSphereId]     = useState<string | null>(null); // スフィア一覧から装備先選択
 
   // 並べ替えモード（味方/敵それぞれ）
   const [allyReorderMode,   setAllyReorderMode]   = useState(false);
@@ -528,7 +782,6 @@ export default function SimulatorPage() {
         };
         return next;
       });
-      setUnitPickSlot(null);
     },
     remove: (slotIdx: number) => {
       setter(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
@@ -718,58 +971,6 @@ export default function SimulatorPage() {
   }
 
   // ============================================================
-  // スフィア選択画面
-  // ============================================================
-  if (spherePickTarget !== null) {
-    return (
-      <div className="min-h-screen p-3">
-        <div className="max-w-4xl mx-auto space-y-3">
-          <div className="flex items-center gap-3 bg-white border-2 border-neutral-900 rounded-xl p-3">
-            <Button variant="outline" size="icon"
-              onClick={() => { setSpherePickTarget(null); setActiveTab('party'); }}
-              className="cyber-button border-neutral-900 text-neutral-900 hover:bg-neutral-900 hover:text-white flex-shrink-0 w-8 h-8">
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <div className="flex-1">
-              <h2 className="text-base font-black uppercase">スフィアを選択</h2>
-              <p className="text-neutral-500 font-mono text-xs">
-                {editingSide === 'ally' ? '味方' : '敵'} — ユニット{spherePickTarget.unitIdx + 1} スロット{spherePickTarget.slotIdx + 1}
-              </p>
-            </div>
-            <div className="relative">
-              <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
-              <input type="text" placeholder="検索..." value={sphereSearch}
-                onChange={e => setSphereSearch(e.target.value)}
-                className="pl-6 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:border-blue-500 w-28" />
-            </div>
-          </div>
-          <div className="flex gap-1.5 flex-wrap px-1">
-            {SPHERE_RARITY_FILTERS.map(r => (
-              <FilterBtn key={r} label={r} active={sphereRarity === r}
-                onClick={() => setSphereRarity(sphereRarity === r ? null : r)} />
-            ))}
-          </div>
-          {isLoadingSpheres ? (
-            <p className="text-center text-neutral-500 font-mono py-10">Loading...</p>
-          ) : !filteredSpheres.length ? (
-            <p className="text-center text-neutral-500 font-mono py-10">スフィアが見つかりません</p>
-          ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-              {filteredSpheres.map(id => (
-                <SphereMiniCard key={id} gameData={sphereGameMap[id]} onClick={() => {
-                  activeSetter.assignSphere(spherePickTarget.slotIdx, id, spherePickTarget.unitIdx);
-                  setSpherePickTarget(null);
-                  setActiveTab('party');
-                }} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ============================================================
   // メイン画面
   // ============================================================
   return (
@@ -800,37 +1001,54 @@ export default function SimulatorPage() {
         <p className="text-red-500 font-bold text-center font-mono text-xs py-1.5 bg-red-50">{battleError}</p>
       )}
 
-      {/* 入れ替えモーダル */}
-      {swapHeroId && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-          onClick={() => setSwapHeroId(null)}>
-          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-sm shadow-xl overflow-hidden"
-            onClick={e => e.stopPropagation()}>
-            <div className="px-4 pt-4 pb-2 border-b border-neutral-100">
-              <p className="text-xs font-black uppercase text-neutral-400">
-                {editingSide === 'ally' ? '味方' : '敵'} — 入れ替え先を選択
-              </p>
-            </div>
-            <div className="p-3 space-y-1.5">
-              {activeSlots.map((u, slotIdx) => {
-                if (!u) return null;
-                return (
-                  <SwapUnitRow key={slotIdx} unit={u} slotIdx={slotIdx}
-                    onSelect={() => {
-                      activeSetter.assign(swapHeroId, slotIdx);
-                      setSwapHeroId(null);
-                    }} />
-                );
-              })}
-            </div>
-            <div className="px-3 pb-3">
-              <button onClick={() => setSwapHeroId(null)}
-                className="w-full py-2 text-xs font-black text-neutral-400 hover:text-neutral-700 border border-neutral-200 rounded-lg">
-                キャンセル
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* ユニット/スフィア配置先選択モーダル（swapHeroId または swapSphereId がセットされたとき） */}
+      {(swapHeroId || swapSphereId) && (
+        <SlotPickModal
+          swapHeroId={swapHeroId}
+          swapSphereId={swapSphereId}
+          allySlots={allySlots}
+          enemySlots={enemySlots}
+          sphereGameMap={sphereGameMap}
+          onSelectUnit={(side, slotIdx) => {
+            if (swapHeroId) {
+              const setter = side === 'ally' ? allySetter : enemySetter;
+              setter.assign(swapHeroId, slotIdx);
+              setEditingSide(side);
+            }
+            setSwapHeroId(null);
+            setActiveTab('party');
+          }}
+          onSelectSphere={(side, unitIdx, slotIdx) => {
+            if (swapSphereId) {
+              const setter = side === 'ally' ? allySetter : enemySetter;
+              setter.assignSphere(slotIdx, swapSphereId, unitIdx);
+              setEditingSide(side);
+            }
+            setSwapSphereId(null);
+            setActiveTab('party');
+          }}
+          onClose={() => { setSwapHeroId(null); setSwapSphereId(null); }}
+        />
+      )}
+
+      {/* スフィア選択モーダル（パーティのスフィアスロットをタップしたとき） */}
+      {spherePickTarget !== null && (
+        <SpherePickModal
+          target={spherePickTarget}
+          editingSide={editingSide}
+          filteredSpheres={filteredSpheres}
+          sphereGameMap={sphereGameMap}
+          isLoadingSpheres={isLoadingSpheres}
+          sphereSearch={sphereSearch}
+          sphereRarity={sphereRarity}
+          onSphereSearch={setSphereSearch}
+          onSphereRarity={setSphereRarity}
+          onSelect={(id) => {
+            activeSetter.assignSphere(spherePickTarget.slotIdx, id, spherePickTarget.unitIdx);
+            setSpherePickTarget(null);
+          }}
+          onClose={() => setSpherePickTarget(null)}
+        />
       )}
 
       {/* モバイルタブ */}
@@ -863,9 +1081,8 @@ export default function SimulatorPage() {
               sphereGameMap={sphereGameMap}
               reorderMode={allyReorderMode}
               reorderFirstIdx={allyReorderFirst}
-              onUnitPickSlotSet={slotIdx => {
+              onUnitPickSlotSet={_slotIdx => {
                 setEditingSide('ally');
-                setUnitPickSlot(slotIdx);
                 setActiveTab('units');
               }}
               onSpherePickSet={target => {
@@ -894,9 +1111,8 @@ export default function SimulatorPage() {
               sphereGameMap={sphereGameMap}
               reorderMode={enemyReorderMode}
               reorderFirstIdx={enemyReorderFirst}
-              onUnitPickSlotSet={slotIdx => {
+              onUnitPickSlotSet={_slotIdx => {
                 setEditingSide('enemy');
-                setUnitPickSlot(slotIdx);
                 setActiveTab('units');
               }}
               onSpherePickSet={target => {
@@ -921,19 +1137,11 @@ export default function SimulatorPage() {
           </div>
         </div>
 
-        {/* ── 中: ユニット/スフィア（タブ切替） ── */}
+        {/* ── 中: ユニット一覧 ── */}
         <div className={`flex-col min-h-0 overflow-hidden border-r-2 border-neutral-200 ${
           activeTab === 'units' ? 'flex flex-1' : 'hidden lg:flex lg:flex-none'
         }`}>
-          {/* ユニット一覧 */}
           <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2">
-            {/* 編集中サイド表示 */}
-            <div className={`text-[10px] font-black px-2 py-1 rounded-lg ${
-              editingSide === 'ally' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-            }`}>
-              {editingSide === 'ally' ? '味方に追加中' : '敵に追加中'}
-              <span className="ml-2 text-neutral-400 font-normal">（パーティのユニット枠をタップで変更）</span>
-            </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
               <input type="text" placeholder="名前 / BB名で検索..." value={unitSearch}
@@ -960,19 +1168,6 @@ export default function SimulatorPage() {
                 );
               })}
             </div>
-            {unitPickSlot !== null && (
-              <div className={`rounded-lg px-3 py-1.5 flex items-center justify-between border ${
-                editingSide === 'ally' ? 'bg-blue-50 border-blue-300' : 'bg-red-50 border-red-300'
-              }`}>
-                <p className={`text-xs font-black ${editingSide === 'ally' ? 'text-blue-700' : 'text-red-700'}`}>
-                  {editingSide === 'ally' ? '味方' : '敵'} 位置 {unitPickSlot + 1} にセット
-                </p>
-                <button onClick={() => setUnitPickSlot(null)}
-                  className="text-neutral-400 hover:text-neutral-600">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
             <p className="text-[10px] text-neutral-400 font-mono">{filteredUnits.length}体</p>
             {isLoadingUnits ? (
               <div className="grid grid-cols-3 gap-2">
@@ -983,23 +1178,21 @@ export default function SimulatorPage() {
             ) : (
               <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
                 {filteredUnits.map(heroId => {
-                  const activeParty = editingSide === 'ally' ? allySlots : enemySlots;
-                  const isSelected = activeParty.some(u => u?.heroId === heroId);
-                  const activeCount = activeParty.filter(Boolean).length;
+                  const allySelected  = allySlots.some(u => u?.heroId === heroId);
+                  const enemySelected = enemySlots.some(u => u?.heroId === heroId);
+                  const isSelected = allySelected || enemySelected;
                   return (
                     <UnitMiniCard
                       key={heroId} heroId={heroId} isSelected={isSelected} isDisabled={false}
                       gameData={heroGameMap[heroId]}
                       onClick={() => {
                         if (isSelected) {
-                          const setter = editingSide === 'ally' ? setAllySlots : setEnemySlots;
-                          setter(prev => prev.map(u => u?.heroId === heroId ? null : u));
-                        } else if (activeCount >= maxUnits) {
-                          setSwapHeroId(heroId);
-                          setActiveTab('party');
+                          // すでにどちらかにいる場合は除去
+                          if (allySelected) setAllySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
+                          else setEnemySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
                         } else {
-                          activeSetter.assign(heroId, unitPickSlot ?? undefined);
-                          setActiveTab('party');
+                          // モーダルで味方/敵・スロットを選ぶ
+                          setSwapHeroId(heroId);
                         }
                       }}
                     />
@@ -1008,7 +1201,6 @@ export default function SimulatorPage() {
               </div>
             )}
           </div>
-
         </div>
 
         {/* ── スフィア一覧 ── */}
@@ -1033,9 +1225,7 @@ export default function SimulatorPage() {
                   onClick={() => setSphereRarity(sphereRarity === r ? null : r)} />
               ))}
             </div>
-            <p className="text-[10px] text-neutral-400 font-mono">
-              {filteredSpheres.length}個 — パーティのスフィア枠から装備
-            </p>
+            <p className="text-[10px] text-neutral-400 font-mono">{filteredSpheres.length}個</p>
             {isLoadingSpheres ? (
               <div className="grid grid-cols-3 gap-2">
                 {Array.from({ length: 9 }).map((_, i) => (
@@ -1045,7 +1235,13 @@ export default function SimulatorPage() {
             ) : (
               <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
                 {filteredSpheres.map(id => (
-                  <SphereMiniCard key={id} gameData={sphereGameMap[id]} onClick={() => {}} />
+                  <SphereMiniCard
+                    key={id} gameData={sphereGameMap[id]}
+                    onClick={() => {
+                      // スフィア一覧からも装備先を選べる
+                      setSwapSphereId(id);
+                    }}
+                  />
                 ))}
               </div>
             )}
