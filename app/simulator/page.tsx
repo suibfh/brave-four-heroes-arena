@@ -342,6 +342,109 @@ function SlotPickModal({
 }
 
 // ============================================================
+// UnitPickModal — パーティの空きスロット/ユニット変更タップ時のモーダル
+// ============================================================
+interface UnitPickModalProps {
+  side: 'ally' | 'enemy';
+  filteredUnits: string[];
+  heroGameMap: Record<string, HeroGameData>;
+  allySlots: (SelectedUnit | null)[];
+  enemySlots: (SelectedUnit | null)[];
+  isLoadingUnits: boolean;
+  unitSearch: string;
+  unitRarity: string | null;
+  unitAttr: number | null;
+  onUnitSearch: (v: string) => void;
+  onUnitRarity: (v: string | null) => void;
+  onUnitAttr: (v: number | null) => void;
+  onSelect: (heroId: string) => void;
+  onRemove: (heroId: string, side: 'ally' | 'enemy') => void;
+  onClose: () => void;
+}
+
+function UnitPickModal({
+  side, filteredUnits, heroGameMap, allySlots, enemySlots,
+  isLoadingUnits, unitSearch, unitRarity, unitAttr,
+  onUnitSearch, onUnitRarity, onUnitAttr, onSelect, onRemove, onClose,
+}: UnitPickModalProps) {
+  const isAlly = side === 'ally';
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+      onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full max-w-lg shadow-xl overflow-hidden max-h-[85vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        {/* ヘッダー */}
+        <div className="px-4 pt-4 pb-2 border-b border-neutral-100 flex-shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-black uppercase flex items-center gap-1">
+                {isAlly ? <Sword className="w-4 h-4 text-blue-500" /> : <Shield className="w-4 h-4 text-red-500" />}
+                {isAlly ? '味方' : '敵'}ユニットを選択
+              </p>
+              <p className="text-[10px] text-neutral-400 font-mono">タップで追加・除去</p>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-neutral-100 text-neutral-400">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input type="text" placeholder="名前 / BB名で検索..." value={unitSearch}
+                onChange={e => onUnitSearch(e.target.value)}
+                className="w-full pl-6 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:border-violet-400" />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {UNIT_RARITY_FILTERS.map(r => (
+                <FilterBtn key={r} label={r} active={unitRarity === r}
+                  onClick={() => onUnitRarity(unitRarity === r ? null : r)} />
+              ))}
+              {UNIT_ATTR_IDS.map(a => {
+                const info = UNIT_ATTR_MAP[a];
+                return (
+                  <FilterBtn key={a} label={info.label} active={unitAttr === a} tw={info.tw}
+                    onClick={() => onUnitAttr(unitAttr === a ? null : a)} />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        {/* ユニット一覧 */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {isLoadingUnits ? (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-neutral-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+              {filteredUnits.map(heroId => {
+                const thisParty = isAlly ? allySlots : enemySlots;
+                const isSelected = thisParty.some(u => u?.heroId === heroId);
+                return (
+                  <UnitMiniCard
+                    key={heroId} heroId={heroId} isSelected={isSelected} isDisabled={false}
+                    gameData={heroGameMap[heroId]}
+                    onClick={() => {
+                      if (isSelected) {
+                        onRemove(heroId, side);
+                      } else {
+                        onSelect(heroId);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // SpherePickModal — パーティのスフィアスロットをタップしたときのモーダル
 // ============================================================
 interface SpherePickModalProps {
@@ -680,6 +783,7 @@ export default function SimulatorPage() {
   // どちらのサイドを編集中か
   const [editingSide,     setEditingSide]     = useState<'ally' | 'enemy'>('ally');
   // unitPickSlot は廃止（モーダルで直接選択）
+  const [unitPickSide, setUnitPickSide] = useState<'ally' | 'enemy' | null>(null); // ユニット選択モーダル用
   const [spherePickTarget, setSpherePickTarget] = useState<{ unitIdx: number; slotIdx: number } | null>(null);
   const [swapHeroId,      setSwapHeroId]       = useState<string | null>(null);
   const [swapSphereId,    setSwapSphereId]     = useState<string | null>(null); // スフィア一覧から装備先選択
@@ -1051,6 +1155,42 @@ export default function SimulatorPage() {
         />
       )}
 
+      {/* ユニット選択モーダル（パーティの空き/変更タップ時） */}
+      {unitPickSide !== null && (
+        <UnitPickModal
+          side={unitPickSide}
+          filteredUnits={filteredUnits}
+          heroGameMap={heroGameMap}
+          allySlots={allySlots}
+          enemySlots={enemySlots}
+          isLoadingUnits={isLoadingUnits}
+          unitSearch={unitSearch}
+          unitRarity={unitRarity}
+          unitAttr={unitAttr}
+          onUnitSearch={setUnitSearch}
+          onUnitRarity={setUnitRarity}
+          onUnitAttr={setUnitAttr}
+          onSelect={(heroId) => {
+            const setter = unitPickSide === 'ally' ? allySetter : enemySetter;
+            const slots   = unitPickSide === 'ally' ? allySlots  : enemySlots;
+            const count   = slots.filter(Boolean).length;
+            if (count >= maxUnits) {
+              // 満員の場合はSlotPickModalで配置先を選ぶ
+              setUnitPickSide(null);
+              setSwapHeroId(heroId);
+            } else {
+              setter.assign(heroId);
+              setUnitPickSide(null);
+            }
+          }}
+          onRemove={(heroId, side) => {
+            if (side === 'ally') setAllySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
+            else setEnemySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
+          }}
+          onClose={() => setUnitPickSide(null)}
+        />
+      )}
+
       {/* モバイルタブ */}
       <div className="lg:hidden flex border-b border-neutral-200 bg-white">
         {(['party', 'units', 'spheres', 'decks'] as const).map(tab => (
@@ -1083,7 +1223,7 @@ export default function SimulatorPage() {
               reorderFirstIdx={allyReorderFirst}
               onUnitPickSlotSet={_slotIdx => {
                 setEditingSide('ally');
-                setActiveTab('units');
+                setUnitPickSide('ally');
               }}
               onSpherePickSet={target => {
                 setEditingSide('ally');
@@ -1113,7 +1253,7 @@ export default function SimulatorPage() {
               reorderFirstIdx={enemyReorderFirst}
               onUnitPickSlotSet={_slotIdx => {
                 setEditingSide('enemy');
-                setActiveTab('units');
+                setUnitPickSide('enemy');
               }}
               onSpherePickSet={target => {
                 setEditingSide('enemy');
