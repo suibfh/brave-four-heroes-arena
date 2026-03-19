@@ -220,7 +220,7 @@ function SlotUnitRow({
         </p>
       </button>
       {/* スフィアスロット2つ（スフィア装備時のみクリック可） */}
-      <div className="flex gap-1 flex-shrink-0">
+      <div className="flex gap-3 flex-shrink-0">
         {[0, 1].map(si => {
           const sId = unit.sphereIds[si];
           const sData = sId ? sphereGameMap[sId] : null;
@@ -266,11 +266,11 @@ function SlotPickModal({
         <div className="px-4 pt-4 pb-2 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
           <div>
             <p className="text-xs font-black uppercase text-neutral-700">
-              {isSpherePick ? 'スフィアの装備先を選択' : 'ユニットの配置先を選択'}
+              {isSpherePick ? 'スフィアの配置先を選択' : 'ユニットの配置先を選択'}
             </p>
             <p className="text-[10px] text-neutral-400 font-mono mt-0.5">
               {isSpherePick
-                ? 'スフィアスロット（数字）をタップして装備'
+                ? 'スフィアスロット（数字）をタップして配置'
                 : 'ユニット行をタップして配置'}
             </p>
           </div>
@@ -784,6 +784,7 @@ export default function SimulatorPage() {
   const [editingSide,     setEditingSide]     = useState<'ally' | 'enemy'>('ally');
   // unitPickSlot は廃止（モーダルで直接選択）
   const [unitPickSide, setUnitPickSide] = useState<'ally' | 'enemy' | null>(null); // ユニット選択モーダル用
+  const [unitPickTargetSlot, setUnitPickTargetSlot] = useState<number | null>(null); // パーティ側から開いた場合のスロット番号
   const [spherePickTarget, setSpherePickTarget] = useState<{ unitIdx: number; slotIdx: number } | null>(null);
   const [swapHeroId,      setSwapHeroId]       = useState<string | null>(null);
   const [swapSphereId,    setSwapSphereId]     = useState<string | null>(null); // スフィア一覧から装備先選択
@@ -1174,8 +1175,13 @@ export default function SimulatorPage() {
             const setter = unitPickSide === 'ally' ? allySetter : enemySetter;
             const slots   = unitPickSide === 'ally' ? allySlots  : enemySlots;
             const count   = slots.filter(Boolean).length;
-            if (count >= maxUnits) {
-              // 満員の場合はSlotPickModalで配置先を選ぶ
+            if (unitPickTargetSlot !== null) {
+              // パーティ側スロットから開いた場合 → そのスロットに直接配置
+              setter.assign(heroId, unitPickTargetSlot);
+              setUnitPickSide(null);
+              setUnitPickTargetSlot(null);
+            } else if (count >= maxUnits) {
+              // ユニット一覧から開いて満員の場合 → SlotPickModalで配置先を選ぶ
               setUnitPickSide(null);
               setSwapHeroId(heroId);
             } else {
@@ -1187,7 +1193,7 @@ export default function SimulatorPage() {
             if (side === 'ally') setAllySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
             else setEnemySlots(prev => prev.map(u => u?.heroId === heroId ? null : u));
           }}
-          onClose={() => setUnitPickSide(null)}
+          onClose={() => { setUnitPickSide(null); setUnitPickTargetSlot(null); }}
         />
       )}
 
@@ -1221,8 +1227,9 @@ export default function SimulatorPage() {
               sphereGameMap={sphereGameMap}
               reorderMode={allyReorderMode}
               reorderFirstIdx={allyReorderFirst}
-              onUnitPickSlotSet={_slotIdx => {
+              onUnitPickSlotSet={slotIdx => {
                 setEditingSide('ally');
+                setUnitPickTargetSlot(slotIdx);
                 setUnitPickSide('ally');
               }}
               onSpherePickSet={target => {
@@ -1251,8 +1258,9 @@ export default function SimulatorPage() {
               sphereGameMap={sphereGameMap}
               reorderMode={enemyReorderMode}
               reorderFirstIdx={enemyReorderFirst}
-              onUnitPickSlotSet={_slotIdx => {
+              onUnitPickSlotSet={slotIdx => {
                 setEditingSide('enemy');
+                setUnitPickTargetSlot(slotIdx);
                 setUnitPickSide('enemy');
               }}
               onSpherePickSet={target => {
